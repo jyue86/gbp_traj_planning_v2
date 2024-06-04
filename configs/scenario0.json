@@ -2,13 +2,13 @@
     "agents": {
         "agent1": {
             "current_pos": [5.0, 0.0],
-            "vel": [-0.5,0],
-            "target_pos": [-5.0, 0.0]
+            "vel": [0.5,0],
+            "target_pos": [8.0, 0.0]
         },
         "agent2": {
             "current_pos": [-5.0, 0.0],
-            "vel": [0.5,0],
-            "target_pos": [5.0, 0.0]
+            "vel": [-0.5,0],
+            "target_pos": [-8.0, 0.0]
         }
     },
     "agent_radius": 1,
