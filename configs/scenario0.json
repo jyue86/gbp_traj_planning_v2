@@ -11,12 +11,13 @@
             "target_pos": [-8.0, 0.0]
         }
     },
-    "agent_radius": 1,
+    "agent_radius": 0.2,
     "obstacle_radius": 1,
     "safety_distance": 0.5,
     "obstacle_pos": [
         [100, 100]
     ],
     "delta_t": 0.2,
-    "max_timesteps": 5000
+    "max_timesteps": 100,
+    "save_gif_path": "gifs/scenario0.gif"
 }

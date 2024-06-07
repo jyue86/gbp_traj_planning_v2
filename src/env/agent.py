@@ -20,20 +20,25 @@ class Agent:
         self.n_agents = start_state.shape[0]
         self.agent_radius = agent_radius
         self.crit_distance = crit_distance
+        self.delta_t = delta_t
         self.time_horizon = time_horizon
+
+        self.state_transition = jnp.eye(4)
+        self.state_transition = self.state_transition.at[:2,2:].set(jnp.eye(2) * self.delta_t)
+        self.update_marginals = jax.vmap(lambda horizon_states: (self.state_transition @ horizon_states.T).T)
     
-    def run(self, state: jnp.array):
-        pass
+    def run(self, states: jnp.array):
+        marginal_belief = states
+        next_states = self.update_marginals(marginal_belief)
+        return next_states
 
-    def init_states(self):
-        def inner_loop(state, _):
-            updated_state = self._transition_to_next_state(state)
-            return updated_state[:, -4:].squeeze(), updated_state
-        
-        _, states = jax.lax.scan(inner_loop, self.start_state, length=self.time_horizon)        
-        initial_states = jnp.swapaxes(states, 0, 1).squeeze()
+    def init_traj(self):
+        def update_state(carry: jnp.array, _: int):
+            carry = self.state_transition @ carry
+            return carry, carry.T
+        _, states = jax.lax.scan(update_state, self.start_state.T, length=self.time_horizon)        
+        initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
-
 
     def _transition_to_next_state(self, current_state):
         def update_fn(state):
@@ -56,4 +61,3 @@ class Agent:
         trajectory = [jnp.add(position, velocity)]
 
         return jnp.stack(waypoints), jnp.stack(trajectory)
-
