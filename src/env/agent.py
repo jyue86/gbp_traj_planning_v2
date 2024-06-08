@@ -6,6 +6,8 @@ https://arxiv.org/pdf/2203.11618.
 import jax
 import jax.numpy as jnp
 
+from fg import FactorGraph
+
 class Agent:
     def __init__(
         self,
@@ -16,28 +18,33 @@ class Agent:
         delta_t: float,
         time_horizon: float=10,
     ):
-        self.start_state = start_state
-        self.end_pos = end_pos
-        self.n_agents = start_state.shape[0]
-        self.agent_radius = agent_radius
-        self.crit_distance = crit_distance
-        self.delta_t = delta_t
-        self.time_horizon = time_horizon
+        self._end_pos = end_pos
+        self._n_agents = start_state.shape[0]
+        self._agent_radius = agent_radius
+        self._crit_distance = crit_distance
+        self._delta_t = delta_t
+        self._time_horizon = time_horizon
 
-        self.state_transition = jnp.eye(4)
-        self.state_transition = self.state_transition.at[:2,2:].set(jnp.eye(2) * self.delta_t)
-        self.update_marginals = jax.vmap(lambda horizon_states: (self.state_transition @ horizon_states.T).T)
+        self._state_transition = jnp.eye(4)
+        self._state_transition = self._state_transition.at[:2,2:].set(jnp.eye(2) * self._delta_t)
+        self._current_state = self._init_traj(start_state)
+        self._update_marginals = jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T)
+
+        self._factor_graph = FactorGraph(self._current_state, self._end_pos)
     
     def run(self, states: jnp.array):
+        ### START REPLACE
         marginal_belief = states
-        next_states = self.update_marginals(marginal_belief)
+        ### END OF REPLACE
+
+        next_states = self._update_marginals(marginal_belief)
         return next_states
 
-    def init_traj(self):
+    def _init_traj(self, start_state):
         def update_state(carry: jnp.array, _: int):
-            carry = self.state_transition @ carry
+            carry = self._state_transition @ carry
             return carry, carry.T
-        _, states = jax.lax.scan(update_state, self.start_state.T, length=self.time_horizon)        
+        _, states = jax.lax.scan(update_state, start_state.T, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
 
@@ -47,11 +54,18 @@ class Agent:
             return x
         return jax.vmap(update_fn)(current_state)
     
-    def get_agent_radius(self):
-        return self.agent_radius
+    @property
+    def current_state(self):
+        return self._current_state
+    
+    @property
+    def agent_radius(self):
+        return self._agent_radius
 
-    def get_n_agents(self):
-        return self.n_agents 
+    @property
+    def n_agents(self):
+        return self._n_agents 
 
-    def get_end_pos(self):
-        return self.end_pos
+    @property
+    def end_pos(self):
+        return self._end_pos

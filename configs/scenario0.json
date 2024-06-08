@@ -17,7 +17,7 @@
     "obstacle_pos": [
         [100, 100]
     ],
-    "delta_t": 0.2,
+    "delta_t": 0.05,
     "max_timesteps": 100,
     "save_gif_path": "gifs/scenario0.gif"
 }

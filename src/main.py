@@ -30,6 +30,7 @@ def init(scenario_config: Dict) -> Dict:
         crit_distance,
         delta_t,
     )
+
     return {
         "agent": agent,
         "max_timesteps": scenario_config["max_timesteps"],

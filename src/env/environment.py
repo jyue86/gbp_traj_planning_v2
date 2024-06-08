@@ -12,9 +12,9 @@ class Environment:
         self.save_gif_path = save_gif_path
         self.timesteps = 0
 
-        self.waypoints = {f"agent{i}": [] for i in range(agent.get_n_agents())} # T x 2, T being number of timestesp
-        self.planned_trajs = {f"agent{i}": [] for i in range(agent.get_n_agents())} # T X K X 2, K is time horizon
-        self.states = agent.init_traj()
+        self.states = agent.current_state
+        self.waypoints = {f"agent{i}": [self.states[i,0,0:2]] for i in range(agent.n_agents)} # T x 2, T being number of timestesp
+        self.planned_trajs = {f"agent{i}": [self.states[i,:,0:2]] for i in range(agent.n_agents)} # T X K X 2, K is time horizon
 
     def step(self):
         self.states = self.agent.run(self.states)
@@ -35,7 +35,7 @@ class Environment:
             self.planned_trajs[key] = jnp.stack(self.planned_trajs[key])
         
         visualizer = Visualizer(
-            self.timesteps, self.agent.get_agent_radius(), self.waypoints, self.planned_trajs
+            self.timesteps, self.agent.agent_radius, self.waypoints, self.planned_trajs
         )
         visualizer.animate(save_fname=self.save_gif_path)
     
@@ -43,7 +43,7 @@ class Environment:
         pass
 
     def is_done(self) -> bool:
-        end_pos = self.agent.get_end_pos()
+        end_pos = self.agent.end_pos
         current_pos = self.states[:,0,0:2]
         return jnp.linalg.norm(end_pos - current_pos) <= 0.2
     
