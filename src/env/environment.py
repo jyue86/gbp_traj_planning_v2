@@ -42,11 +42,10 @@ class Environment:
     def count_collisions(self):
         pass
 
-    def initialize_with_dummy_data(self) -> None:
-        pass
-
     def is_done(self) -> bool:
-        return False
+        end_pos = self.agent.get_end_pos()
+        current_pos = self.states[:,0,0:2]
+        return jnp.linalg.norm(end_pos - current_pos) <= 0.2
     
     def is_truncated(self) -> bool:
         return self.timesteps == self.max_timesteps

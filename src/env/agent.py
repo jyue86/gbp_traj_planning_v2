@@ -17,6 +17,7 @@ class Agent:
         time_horizon: float=10,
     ):
         self.start_state = start_state
+        self.end_pos = end_pos
         self.n_agents = start_state.shape[0]
         self.agent_radius = agent_radius
         self.crit_distance = crit_distance
@@ -50,14 +51,7 @@ class Agent:
         return self.agent_radius
 
     def get_n_agents(self):
-        return self.n_agents
-    
-    def get_waypoints_and_trajectory(self):
-        # Get current state (state at x0), extract position and velocity
-        position = jnp.array([1.0, 0.0]) # Test position, replace later
-        velocity = jnp.array([0.1, -0.2])
+        return self.n_agents 
 
-        waypoints = [position.copy()]
-        trajectory = [jnp.add(position, velocity)]
-
-        return jnp.stack(waypoints), jnp.stack(trajectory)
+    def get_end_pos(self):
+        return self.end_pos
