@@ -8,13 +8,12 @@ from utils import load_json
 
 def init(scenario_config: Dict) -> Dict:
     states = []
-    target_pos = []
+    target_states = []
     for agent_name in scenario_config["agents"]:
-        pos = jnp.array(scenario_config["agents"][agent_name]["current_pos"])
-        vel = jnp.array(scenario_config["agents"][agent_name]["vel"])
-        states.append(jnp.concat((pos, vel)))
-        target_pos.append(
-            jnp.array(scenario_config["agents"][agent_name]["target_pos"])
+        state = jnp.array(scenario_config["agents"][agent_name]["current_state"])
+        states.append(state)
+        target_states.append(
+            jnp.array(scenario_config["agents"][agent_name]["target_state"])
         )
     crit_distance = (
         2 * scenario_config["agent_radius"] + scenario_config["safety_distance"]
@@ -25,7 +24,7 @@ def init(scenario_config: Dict) -> Dict:
     delta_t = scenario_config["delta_t"]
     agent = Agent(
         jnp.stack(states),
-        jnp.stack(target_pos),
+        jnp.stack(target_states),
         scenario_config["agent_radius"],
         crit_distance,
         delta_t,
