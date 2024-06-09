@@ -30,7 +30,7 @@ class Agent:
         self._current_state = self._init_traj(start_state)
         self._update_marginals = jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T)
 
-        self._factor_graph = FactorGraph(self._current_state, self._end_pos)
+        self._factor_graph = FactorGraph(self._current_state, self._end_pos, self._delta_t)
     
     def run(self, states: jnp.array):
         ### START REPLACE
