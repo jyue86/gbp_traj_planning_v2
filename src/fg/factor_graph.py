@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Dict
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +12,11 @@ from .factors import PoseFactor, DynamicsFactor
 class Var2FacMessages:
     poses: jnp.array
     dynamics: jnp.array
+    neighbor_mapping: Dict
+
+    def _init_neighbor_mapping(self) -> Dict:
+        # define dynamics mapping
+        return {}
 
 
 @dataclass
