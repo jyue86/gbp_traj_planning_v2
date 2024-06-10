@@ -2,6 +2,7 @@
 Implementation of the online algorithm from:
 https://arxiv.org/pdf/2203.11618.
 """
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -11,8 +12,8 @@ from fg import FactorGraph
 class Agent:
     def __init__(
         self,
-        start_state: jnp.array,
-        end_pos: jnp.array,
+        start_state: jnp.ndarray,
+        end_pos: jnp.ndarray,
         agent_radius: float,
         crit_distance: float,
         delta_t: float,
@@ -27,45 +28,47 @@ class Agent:
 
         self._state_transition = jnp.eye(4)
         self._state_transition = self._state_transition.at[:2,2:].set(jnp.eye(2) * self._delta_t)
-        self._current_state = self._init_traj(start_state)
+        self._initial_state = self._init_traj(start_state)
         self._update_marginals = jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T)
 
-        self._factor_graph = FactorGraph(self._current_state, self._end_pos, self._delta_t)
+        self._factor_graph = FactorGraph(self._initial_state, self._end_pos, self._delta_t)
     
-    def run(self, states: jnp.array):
+    def run(self, states: jnp.ndarray) -> jnp.ndarray:
         ### START REPLACE
+        # self._factor_graph = self._factor_graph.run_gbp()
+        # marginal_belief = self._factor_graph.states
         marginal_belief = states
         ### END OF REPLACE
 
         next_states = self._update_marginals(marginal_belief)
         return next_states
 
-    def _init_traj(self, start_state):
-        def update_state(carry: jnp.array, _: int):
+    def _init_traj(self, start_state: jnp.ndarray) -> jnp.ndarray:
+        def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
             carry = self._state_transition @ carry
             return carry, carry.T
         _, states = jax.lax.scan(update_state, start_state.T, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
 
-    def _transition_to_next_state(self, current_state):
+    def _transition_to_next_state(self, current_state: jnp.ndarray) -> jnp.ndarray:
         def update_fn(state):
             x = (self.factor_graph.dynamics_factors.state_transition @ state.reshape((4,1)))
             return x
         return jax.vmap(update_fn)(current_state)
     
     @property
-    def current_state(self):
-        return self._current_state
+    def initial_state(self) -> jnp.ndarray:
+        return self._initial_state
     
     @property
-    def agent_radius(self):
+    def agent_radius(self) -> float:
         return self._agent_radius
 
     @property
-    def n_agents(self):
+    def n_agents(self) -> int:
         return self._n_agents 
 
     @property
-    def end_pos(self):
+    def end_pos(self) -> jnp.ndarray:
         return self._end_pos

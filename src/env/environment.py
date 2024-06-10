@@ -12,18 +12,18 @@ class Environment:
         self.save_gif_path = save_gif_path
         self.timesteps = 0
 
-        self.states = agent.current_state
+        self.states = agent.initial_state
         self.waypoints = {f"agent{i}": [self.states[i,0,0:2]] for i in range(agent.n_agents)} # T x 2, T being number of timestesp
         self.planned_trajs = {f"agent{i}": [self.states[i,:,0:2]] for i in range(agent.n_agents)} # T X K X 2, K is time horizon
 
-    def step(self):
+    def step(self) -> None:
         self.states = self.agent.run(self.states)
         for i in range(self.states.shape[0]):
             self.waypoints[f"agent{i}"].append(self.states[i,0,0:2])
             self.planned_trajs[f"agent{i}"].append(self.states[i,:,0:2])
         self.timesteps += 1
     
-    def _get_closest_obstacles(self):
+    def _get_closest_obstacles(self) -> None:
         pass
 
     def render(self) -> None:
@@ -39,7 +39,7 @@ class Environment:
         )
         visualizer.animate(save_fname=self.save_gif_path)
     
-    def count_collisions(self):
+    def count_collisions(self) -> None:
         pass
 
     def is_done(self) -> bool:
