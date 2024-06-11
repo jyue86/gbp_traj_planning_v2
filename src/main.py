@@ -53,14 +53,16 @@ def main():
         save_gif_path=env_data["save_gif_path"]
     )
 
+    i = 0
     while True:
         env.step()
-        if env.is_done():
+        if i == 10 or env.is_done():
             print("Done!")
             break
         elif env.is_truncated():
             print("Truncated!")
             break
+        i += 1
     env.render()
 
 

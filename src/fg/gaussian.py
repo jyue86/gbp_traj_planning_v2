@@ -49,40 +49,45 @@ class Gaussian:
         if other is None:
             return self.copy()
 
-        # Merge dims
-        # dims = [i for i in self.dims]
-        # for d in other.dims:
-        #     if d not in dims:
-        #         dims.append(d)
-        dims = self.dims
-        if other.dims.shape != dims.shape or jnp.sum(dims == other.dims) != dims.shape[0]:
-            dims = jnp.concat((dims, other.dims))       #         dims.append(d)
+        dims = self.dims.copy()
+        other_dims = other.dims.copy()
+        unique_dim_values = jnp.unique(self.dims, size=self.dims.shape[0]//4)
+        unique_other_dim_values = jnp.unique(other_dims, size=other_dims.shape[0]//4)
+
+        def check_missing_index(carry, x):
+            mask = jnp.where(carry == x, 1.0, 0.0)
+            result = jax.lax.select(mask.sum() == 0, jnp.full((4,), True), jnp.full((4,), False))
+            return carry, result 
+
+        def get_indices(carry, x):
+            mask = jnp.where(carry == x, x, 0.0)
+            return carry, jnp.array([0.,1.,2.,3.]) + jnp.nonzero(mask, size=1)[0]
+
+        _, missing_axes_values = jax.lax.scan(check_missing_index, dims, unique_other_dim_values)
+        missing_axes_values = other_dims[missing_axes_values.flatten()] 
+        unique_missing_axes_values = jnp.unique(missing_axes_values, size=missing_axes_values.shape[0]//4)
+        _, missing_axes = jax.lax.scan(get_indices, other_dims, unique_missing_axes_values)
+        dims = jnp.concat((dims, other_dims[missing_axes.flatten().astype(int)])) # nonzero usage will break vmap
+        # jax.debug.print("dims: {}", dims)
         
         # Extend self matrix
         prec_self = jnp.zeros((len(dims), len(dims)))
         info_self = jnp.zeros((len(dims), 1))
-        # idxs_self = jnp.array([dims.index(d) for d in self.dims]) # here, need to fix this
-        # jax.debug.print("{}, {}", self.dims, self.dims.shape)
-        # idxs_self = jnp.concat([jnp.where(dims == d)[0].flatten() for d in jnp.unique(self.dims, size=2)])
-        _, indices = jnp.unique(other.dims, return_index=True, size=2)
-        idxs_self = []
-        for i, d in enumerate(indices):
-            idxs_self.append(jnp.array([0., 1., 2., 3.]) + i)
-        idxs_self = jnp.concatenate(idxs_self) 
+        _, idxs_self = jax.lax.scan(get_indices, dims, unique_dim_values)
+        idxs_self = idxs_self.flatten().astype(int)
+        # jax.debug.print("idxs_self: {}", idxs_self)
         prec_self = prec_self.at[jnp.ix_(idxs_self, idxs_self)].set(self.precision)
         info_self = info_self.at[jnp.ix_(idxs_self,jnp.array([0]))].set(self.info.reshape(-1,1))
 
         # Extend other matrix
         prec_other = jnp.zeros((len(dims), len(dims)))
         info_other = jnp.zeros((len(dims), 1))
-        # idxs_other = jnp.array([dims.index(d) for d in other.dims]) # here, need to fix this
-        _, indices = jnp.unique(other.dims, return_index=True, size=2)
-        idxs_other = []
-        for i, d in enumerate(indices):
-            idxs_other.append(jnp.array([0., 1., 2., 3.]) + i)
-        idxs_other = jnp.concatenate(idxs_other) 
+        _, idxs_other = jax.lax.scan(get_indices, dims, unique_other_dim_values)
+        idxs_other = idxs_other.flatten().astype(int)
+        # jax.debug.print("idxs_other: {}", idxs_other)
         prec_other = prec_other.at[jnp.ix_(idxs_other, idxs_other)].set(other.precision)
         info_other = info_other.at[jnp.ix_(idxs_other, jnp.array([0]))].set(other.info.reshape(-1,1))
+
         # Add
         prec = prec_other + prec_self
         info = (info_other + info_self).squeeze(-1)
@@ -91,28 +96,36 @@ class Gaussian:
     def __imul__(self, other: 'Gaussian') -> 'Gaussian':
         return self.__mul__(other)
     
-    def marginalize(self, dims: jnp.ndarray) -> "Gaussian":
+    def marginalize(self, marginalized_dims: jnp.ndarray) -> "Gaussian":
         info, prec = self.info, self.precision
         info = info.reshape(-1,1)
-        axis_a = jnp.array([idx for idx, d in enumerate(self.dims) if d not in dims])
-        axis_b = jnp.array([idx for idx, d in enumerate(self.dims) if d in dims])
+        unique_dim_values = jnp.unique(marginalized_dims, size=marginalized_dims.shape[0]//4)
+        
+        def find_axis_a_values(carry, x):
+            mask = jnp.where(carry == x, False, True)
+            return carry, mask
 
-        def axis_a_fn(kp, v):
-            if v not in dims:
-                return kp[0].idx
-            else:
-                return -1
-            
-        def axis_b_fn(kp, v):
-            if v in dims:
-                return kp[0].idx
-            else:
-                return -1
-            
-        # axis_a = jnp.array(jax.tree_util.tree_map_with_path(axis_a_fn, self.dims))
-        # axis_b = jnp.array(jax.tree_util.tree_map_with_path(axis_b_fn, self.dims))
-        # axis_a = axis_a[jnp.where(axis_a != -1)]
-        # axis_b = axis_b[jnp.where(axis_b != -1)]
+        def find_axis_b(carry, x):
+            mask = jnp.where(carry == x, True, False)
+            return carry, mask
+        
+        def get_indices(carry, x):
+            mask = jnp.where(carry == x, 1.0, 0.0)
+            return carry, jnp.array([0., 1., 2., 3.]) + jnp.nonzero(mask, size=1)[0]
+        _, axis_a_values = jax.lax.scan(find_axis_a_values, self.dims, unique_dim_values)
+        axis_a_values = self.dims[axis_a_values.flatten()]
+        unique_axis_a_values = jnp.unique(axis_a_values, size=axis_a_values.shape[0]//4)
+        _, axis_a = jax.lax.scan(get_indices, self.dims, unique_axis_a_values)
+        axis_a = axis_a.flatten().astype(int)
+
+        _, axis_b_values = jax.lax.scan(find_axis_b, self.dims, unique_dim_values)
+        axis_b_values = self.dims[axis_b_values.flatten()]
+        unique_axis_b_values = jnp.unique(axis_b_values, size=axis_b_values.shape[0]//4)
+        _, axis_b = jax.lax.scan(get_indices, self.dims, unique_axis_b_values)
+        axis_b = axis_b.flatten().astype(int)
+
+        # jax.debug.print("axis a: {}", axis_a)
+        # jax.debug.print("axis b: {}", axis_b)
 
         info_a = info[jnp.ix_(axis_a, jnp.array([0]))]
         prec_aa = prec[jnp.ix_(axis_a, axis_a)]
@@ -125,5 +138,4 @@ class Gaussian:
         info_ = info_a - prec_ab @ prec_bb_inv @ info_b
         prec_ = prec_aa - prec_ab @ prec_bb_inv @ prec_ba
 
-        dims = tuple(i for i in self.dims if i not in dims)
-        return Gaussian(info_.squeeze(-1), prec_, dims)
+        return Gaussian(info_.squeeze(-1), prec_, axis_a_values)
