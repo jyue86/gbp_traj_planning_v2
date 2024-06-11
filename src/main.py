@@ -28,6 +28,7 @@ def init(scenario_config: Dict) -> Dict:
         scenario_config["agent_radius"],
         crit_distance,
         delta_t,
+        time_horizon=4
     )
 
     return {

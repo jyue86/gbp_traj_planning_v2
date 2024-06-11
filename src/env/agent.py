@@ -7,7 +7,7 @@ from typing import Tuple
 import jax
 import jax.numpy as jnp
 
-from fg import FactorGraph
+from fg import FactorGraph, Gaussian
 
 class Agent:
     def __init__(
@@ -31,13 +31,24 @@ class Agent:
         self._initial_state = self._init_traj(start_state)
         self._update_marginals = jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T)
 
-        self._factor_graph = FactorGraph(self._initial_state, self._end_pos, self._delta_t)
+        self._factor_graph = FactorGraph(self._n_agents, self._time_horizon, self._end_pos, self._delta_t)
+        self._var2fac_msgs = self._factor_graph.init_var2fac_msgs()
+        self._init = True
+        self._fac2var_msgs = None
     
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
         ### START REPLACE
-        # self._factor_graph = self._factor_graph.run_gbp()
-        # marginal_belief = self._factor_graph.states
-        marginal_belief = states
+        gbp_results = self._factor_graph.run_gbp(states, self._var2fac_msgs, self._fac2var_msgs, self._init)
+        marginals = gbp_results["marginals"]
+        self._var2fac_msgs = gbp_results["var2fac"]
+        self._fac2var_msgs = gbp_results["fac2var"]
+        if self._init:
+            self._init = False
+        # then extract marginals
+        marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
+
+        # Backup line, can replace when ready
+        # marginal_belief = states
         ### END OF REPLACE
 
         next_states = self._update_marginals(marginal_belief)
@@ -50,6 +61,11 @@ class Agent:
         _, states = jax.lax.scan(update_state, start_state.T, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
+    
+    def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
+        def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
+            return (jnp.linalg.inv(state_precision)  @ state_info.reshape(-1,1)).flatten()
+        return jax.vmap(jax.vmap(batched_extract_mean))(info, precision)
 
     def _transition_to_next_state(self, current_state: jnp.ndarray) -> jnp.ndarray:
         def update_fn(state):

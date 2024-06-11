@@ -13,34 +13,36 @@ OBSTACLE_NOISE = 0.005
 
 class Factor:
     def __init__(
-        self, state: jnp.array, state_precision: jnp.array, linear: bool = True
+        self, state: jnp.array, state_precision: jnp.ndarray, dims: jnp.array, linear: bool = True
     ) -> None:
         self._state = state
         self._state_precision = state_precision
         self._linear = linear
+        self._dims = dims
 
     def calculate_likelihood(self) -> Gaussian:
         return Gaussian(
             self._calc_info(self._state, self._state_precision),
             self._calc_precision(self._state, self._state_precision),
+            self._dims
         )
 
     @abstractmethod
-    def _calc_measurement(self, state: jnp.array) -> jnp.array:
+    def _calc_measurement(self, state: jnp.ndarray) -> jnp.ndarray:
         pass
 
-    def _calc_info(self, state: jnp.array, precision: jnp.array) -> jnp.array:
+    def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         X = state
         if self._linear:
             eta = precision @ (jnp.zeros(N_STATES) - self._calc_measurement(state))
         else:
             J = jax.jacfwd(self._calc_measurement)(state)
             eta = (J.T @ precision) @ (
-                J @ X + jnp.zeros((X.shape[0], 1)) - self.calc_measurement(state)
+                (J @ X.reshape((-1,1))) + 0 - self._calc_measurement(state).reshape((-1,1))
             )
-        return eta
+        return eta.squeeze()
 
-    def _calc_precision(self, state: jnp.array, precision: jnp.array) -> jnp.array:
+    def _calc_precision(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         if self._linear:
             return precision
         else:
@@ -49,16 +51,16 @@ class Factor:
 
 
 class PoseFactor(Factor):
-    def __init__(self, state: jnp.array) -> None:
+    def __init__(self, state: jnp.ndarray, dims: jnp.ndarray) -> None:
         precision = jnp.pow(POSE_NOISE, -2) * jnp.eye(N_STATES)
-        super(PoseFactor, self).__init__(state, precision)
+        super(PoseFactor, self).__init__(state, precision, dims)
 
-    def _calc_measurement(self, state: jnp.array) -> jnp.array:
+    def _calc_measurement(self, state: jnp.ndarray) -> jnp.ndarray:
         return state
 
 
 class DynamicsFactor(Factor):
-    def __init__(self, state: jnp.array, delta_t: float) -> None:
+    def __init__(self, state: jnp.ndarray, delta_t: float, dims: jnp.ndarray) -> None:
         self.delta_t = delta_t
         process_covariance = DYNAMICS_NOISE * jnp.eye(N_STATES // 2)
         top_half = jnp.hstack(
@@ -75,15 +77,16 @@ class DynamicsFactor(Factor):
         )
         precision = jnp.vstack((top_half, bottom_half))
         precision = jnp.linalg.inv(precision)
+        precision = jnp.diag(jnp.array([10, 10, 20, 20]))
 
         self.state_transition = jnp.eye(4)
         self.state_transition = self.state_transition.at[0:2, 2:].set(
             jnp.eye(2) * self.delta_t
         )
 
-        super(DynamicsFactor, self).__init__(state, precision)
+        super(DynamicsFactor, self).__init__(state, precision, dims, linear=False)
 
-    def _calc_measurement(self, state: jnp.array) -> jnp.array:
+    def _calc_measurement(self, state: jnp.ndarray) -> jnp.ndarray:
         prev_state = state[0:4]
         current_state = state[4:]
         return self.state_transition @ prev_state - current_state
