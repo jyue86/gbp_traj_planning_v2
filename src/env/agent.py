@@ -36,12 +36,15 @@ class Agent:
         self._var2fac_msgs = self._factor_graph.init_var2fac_msgs()
         self._init = True
         self._fac2var_msgs = None
+
+        self.init_gbp = self._factor_graph.init_gbp()
     
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
         ### START REPLACE
         marginal_belief = states.copy()
+
         for _ in range(10):
-            gbp_results = self._factor_graph.run_gbp(marginal_belief, self._var2fac_msgs, self._fac2var_msgs, self._init)
+            gbp_results = self._factor_graph.run_gbp(marginal_belief, self._var2fac_msgs, self._fac2var_msgs)
             marginals = gbp_results["marginals"]
             self._var2fac_msgs = gbp_results["var2fac"]
             self._fac2var_msgs = gbp_results["fac2var"]

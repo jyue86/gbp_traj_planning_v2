@@ -80,6 +80,16 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon - 2)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon - 1)
 
+    def init_gbp(
+        self,
+        states: jnp.ndarray,
+        var2fac_msgs: Var2FacMessages,
+        fac2var_msgs: Fac2VarMessages = None,
+        init: bool = False,
+    ) -> Dict:
+        ## TODO: presumably the same thing as run_gbp but with a different
+        pass
+
     def run_gbp(
         self,
         states: jnp.ndarray,
@@ -87,17 +97,13 @@ class FactorGraph:
         fac2var_msgs: Fac2VarMessages = None,
         init: bool = False,
     ) -> Dict:
-        # updated_var2fac_msgs = jax.lax.cond(
-        #     init == True,
-        #     lambda: var2fac_msgs,
-        #     lambda: self._update_var_to_factor_messages(fac2var_msgs, self._var2fac_neighbors)
-        # )
-        if init:
-            updated_var2fac_msgs = var2fac_msgs
-        else:
-            updated_var2fac_msgs = self._update_var_to_factor_messages(
+        ## TODO : REPLACE THIS WITH SOME THIE INIT CODE
+
+        fn1 = lambda: var2fac_msgs
+        fn2 = lambda: self._update_var_to_factor_messages(
                 fac2var_msgs, self._var2fac_neighbors
             )
+        updated_var2fac_msgs = jax.lax.cond(init, fn2, fn1)
 
         updated_factor_likelihoods = self._update_factor_likelihoods(states)
         updated_fac2var_msgs = self._update_factor_to_var_messages(
@@ -130,41 +136,21 @@ class FactorGraph:
             def multiply_gaussians(g1, g2):
                 return g1 * g2
 
-            dynamics_results = []
-            for i in range(f_likelihoods.info.shape[0]):
+            def fn(i):
                 mult_result = multiply_gaussians(
                     f_likelihoods[i], dynamics[neighbors["dynamics"]][i]
                 )
-                marg_result = mult_result.marginalize(marginalize_order[i])
-                dynamics_results.append(marg_result)
-
-            # updated_dynamics = jax.vmap(multiply_gaussians)(
-            #     f_likelihoods, dynamics[neighbors["dynamics"]]
-            # )
-            updated_dynamics = jax.tree_util.tree_map(
-                lambda a, b, c, d, e, f: jnp.stack((a, b, c, d, e, f)),
-                *dynamics_results,
-            )
-            # marginalize
-
+                return mult_result.marginalize(marginalize_order[i])
+            updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
+        
             return Fac2VarMessages(updated_poses, updated_dynamics)
-
-        # return jax.vmap(batched_update_factor_to_var_messages, in_axes=(0, 0, None))(
-        #     var2fac_msgs, factors, var2fac_neighbors
-        # )
-        results = []
-        for i in range(self._n_agents):
-            result = batched_update_factor_to_var_messages(
-                Var2FacMessages(var2fac_msgs.poses[i], var2fac_msgs.dynamics[i]),
-                Factors(factors.poses[i], factors.dynamics[i]),
-                var2fac_neighbors,
-            )
-            results.append(result)
-        return jax.tree_util.tree_map(
-            lambda x, y: jnp.stack((x, y)), results[0], results[1]
+        
+        jax.vmap(batched_update_factor_to_var_messages)(
+            Var2FacMessages(var2fac_msgs.poses, var2fac_msgs.dynamics),
+            Factors(factors.poses, factors.dynamics),
+            var2fac_neighbors,
         )
 
-    @jax.jit
     def _update_var_to_factor_messages(
         self, fac2var_msgs: Fac2VarMessages, fac2var_neighbors: Dict
     ) -> Var2FacMessages:
@@ -189,7 +175,6 @@ class FactorGraph:
             fac2var_msgs, fac2var_neighbors
         )
 
-    @jax.jit
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
         def batch_update_factor_likelihoods(agent_states, end_pos):
             pose_combos = jnp.stack((agent_states[0], -end_pos))  # [2,4]
@@ -221,7 +206,6 @@ class FactorGraph:
 
         return jax.vmap(batch_update_factor_likelihoods)(states, self._target_states)
 
-    @jax.jit
     def _update_marginal_beliefs(self, fac2var_msgs: Fac2VarMessages) -> Gaussian:
         def batched_update_marginal_beliefs(
             agent_fac2var_msgs: Fac2VarMessages,
@@ -249,7 +233,6 @@ class FactorGraph:
 
         return jax.vmap(batched_update_marginal_beliefs)(fac2var_msgs)
 
-    @jax.jit
     def init_var2fac_msgs(self) -> Var2FacMessages:
         pose_msgs = jax.vmap(jax.vmap(lambda _, var: Gaussian.identity(var)))(
             jnp.zeros((self._n_agents, 2)),
