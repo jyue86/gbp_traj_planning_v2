@@ -164,6 +164,7 @@ class FactorGraph:
             lambda x, y: jnp.stack((x, y)), results[0], results[1]
         )
 
+    @jax.jit
     def _update_var_to_factor_messages(
         self, fac2var_msgs: Fac2VarMessages, fac2var_neighbors: Dict
     ) -> Var2FacMessages:
@@ -188,6 +189,7 @@ class FactorGraph:
             fac2var_msgs, fac2var_neighbors
         )
 
+    @jax.jit
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
         def batch_update_factor_likelihoods(agent_states, end_pos):
             pose_combos = jnp.stack((agent_states[0], -end_pos))  # [2,4]
@@ -219,6 +221,7 @@ class FactorGraph:
 
         return jax.vmap(batch_update_factor_likelihoods)(states, self._target_states)
 
+    @jax.jit
     def _update_marginal_beliefs(self, fac2var_msgs: Fac2VarMessages) -> Gaussian:
         def batched_update_marginal_beliefs(
             agent_fac2var_msgs: Fac2VarMessages,
@@ -246,6 +249,7 @@ class FactorGraph:
 
         return jax.vmap(batched_update_marginal_beliefs)(fac2var_msgs)
 
+    @jax.jit
     def init_var2fac_msgs(self) -> Var2FacMessages:
         pose_msgs = jax.vmap(jax.vmap(lambda _, var: Gaussian.identity(var)))(
             jnp.zeros((self._n_agents, 2)),
@@ -277,3 +281,14 @@ class FactorGraph:
     @property
     def states(self):
         return self._states
+    
+    def _tree_flatten(self):
+        children = (self._target_states,)
+        aux_data = {'n_agents': self._n_agents, "time_horizon": self._time_horizon, "delta_t": self._delta_t}
+        return (children, aux_data)
+
+    @classmethod
+    def _tree_unflatten(cls, aux_data, children):
+       return cls(aux_data["n_agents"], aux_data["time_horizon"], children[0], aux_data["delta_t"])
+    
+jax.tree_util.register_pytree_node(FactorGraph, FactorGraph._tree_flatten, FactorGraph._tree_unflatten)

@@ -19,8 +19,9 @@ class Agent:
         delta_t: float,
         time_horizon: float=10,
     ):
+        self._start_state = start_state
         self._end_pos = end_pos
-        self._n_agents = start_state.shape[0]
+        self._n_agents = self._start_state.shape[0]
         self._agent_radius = agent_radius
         self._crit_distance = crit_distance
         self._delta_t = delta_t
@@ -29,7 +30,7 @@ class Agent:
         self._state_transition = jnp.eye(4)
         self._state_transition = self._state_transition.at[:2,2:].set(jnp.eye(2) * self._delta_t)
         self._initial_state = self._init_traj(start_state)
-        self._update_marginals = jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T)
+        self._update_marginals = jax.jit(jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T))
 
         self._factor_graph = FactorGraph(self._n_agents, self._time_horizon, self._end_pos, self._delta_t)
         self._var2fac_msgs = self._factor_graph.init_var2fac_msgs()
@@ -56,6 +57,8 @@ class Agent:
         next_states = self._update_marginals(marginal_belief)
         return next_states
 
+    # @jax.jit
+    "could not jit bc I call this in __init__()"
     def _init_traj(self, start_state: jnp.ndarray) -> jnp.ndarray:
         # def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
         #     next_state = self._state_transition @ carry
@@ -70,11 +73,13 @@ class Agent:
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
     
+    @jax.jit
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
             return (jnp.linalg.inv(state_precision)  @ state_info.reshape(-1,1)).flatten()
         return jax.vmap(jax.vmap(batched_extract_mean))(info, precision)
 
+    @jax.jit
     def _transition_to_next_state(self, current_state: jnp.ndarray) -> jnp.ndarray:
         def update_fn(state):
             x = (self._state_transition @ state.reshape((4,1)))
@@ -96,3 +101,25 @@ class Agent:
     @property
     def end_pos(self) -> jnp.ndarray:
         return self._end_pos
+
+    def _tree_flatten(self):
+        # start_state: jnp.ndarray,
+        # end_pos: jnp.ndarray,
+        # agent_radius: float,
+        # crit_distance: float,
+        # delta_t: float,
+        # time_horizon: float=10,
+        children = (self._start_state, self._end_pos)
+        aux_data = {
+            "agent_radius": self._agent_radius,
+            "crit_distance": self._crit_distance,
+            "delta_t": self._delta_t,
+            "time_horizon": self._time_horizon
+        }
+        return children, aux_data
+
+    @classmethod
+    def _tree_unflatten(cls, aux_data, children):
+        return cls(*children, **aux_data)
+
+jax.tree_util.register_pytree_node(Agent, Agent._tree_flatten, Agent._tree_unflatten)
