@@ -7,7 +7,7 @@ from typing import Tuple
 import jax
 import jax.numpy as jnp
 
-from fg import FactorGraph, Gaussian
+from fg import FactorGraph
 
 class Agent:
     def __init__(
@@ -34,10 +34,10 @@ class Agent:
 
         self._factor_graph = FactorGraph(self._n_agents, self._time_horizon, self._end_pos, self._delta_t)
         self._var2fac_msgs = self._factor_graph.init_var2fac_msgs()
-        self._init = True
-        self._fac2var_msgs = None
 
-        self.init_gbp = self._factor_graph.init_gbp()
+        gbp_results = self._factor_graph.run_gbp_init(self._initial_state, self._var2fac_msgs)
+        self._var2fac_msgs = gbp_results["var2fac"]
+        self._fac2var_msgs = gbp_results["fac2var"]
     
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
         ### START REPLACE
@@ -48,8 +48,6 @@ class Agent:
             marginals = gbp_results["marginals"]
             self._var2fac_msgs = gbp_results["var2fac"]
             self._fac2var_msgs = gbp_results["fac2var"]
-            if self._init:
-                self._init = False
             # then extract marginals
             marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
 

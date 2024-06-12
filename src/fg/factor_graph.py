@@ -40,7 +40,7 @@ def init_fac2var_neighbors(iters: int) -> Dict:
         jnp.array([2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]),
         length=iters,
     )
-    marg_order = jnp.split(marg_order.flatten(), 6)
+    marg_order = jnp.stack(jnp.split(marg_order.flatten(), 6))
 
     return {"dynamics": dynamic_dims, "factors": factor_dims, "margs": marg_order}
 
@@ -80,31 +80,32 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon - 2)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon - 1)
 
-    def init_gbp(
+    def run_gbp_init(
         self,
         states: jnp.ndarray,
-        var2fac_msgs: Var2FacMessages,
-        fac2var_msgs: Fac2VarMessages = None,
-        init: bool = False,
+        init_var2fac_msgs: Var2FacMessages,
     ) -> Dict:
-        ## TODO: presumably the same thing as run_gbp but with a different
-        pass
+        updated_factor_likelihoods = self._update_factor_likelihoods(states)
+        updated_fac2var_msgs = self._update_factor_to_var_messages(
+            init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
+        )
+        # updated_fac2var_msgs = None
+        marginals = self._update_marginal_beliefs(updated_fac2var_msgs)
+        return {
+            "var2fac": init_var2fac_msgs,
+            "fac2var": updated_fac2var_msgs,
+            "marginals": marginals,
+        }
 
     def run_gbp(
         self,
         states: jnp.ndarray,
         var2fac_msgs: Var2FacMessages,
         fac2var_msgs: Fac2VarMessages = None,
-        init: bool = False,
     ) -> Dict:
-        ## TODO : REPLACE THIS WITH SOME THIE INIT CODE
-
-        fn1 = lambda: var2fac_msgs
-        fn2 = lambda: self._update_var_to_factor_messages(
+        updated_var2fac_msgs = self._update_var_to_factor_messages(
                 fac2var_msgs, self._var2fac_neighbors
             )
-        updated_var2fac_msgs = jax.lax.cond(init, fn2, fn1)
-
         updated_factor_likelihoods = self._update_factor_likelihoods(states)
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
@@ -137,15 +138,19 @@ class FactorGraph:
                 return g1 * g2
 
             def fn(i):
+                # jax.debug.print("factor likelihood dims: {}:", f_likelihoods[i].dims)
+                # jax.debug.print("dynamics dims: {}:", dynamics[neighbors["dynamics"]][i].dims)
                 mult_result = multiply_gaussians(
                     f_likelihoods[i], dynamics[neighbors["dynamics"]][i]
                 )
+                # jax.debug.print("mult result, i: {}, {}", mult_result.dims, i)
+                # jax.debug.print("marginalize order: {}", marginalize_order[i])
                 return mult_result.marginalize(marginalize_order[i])
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
         
             return Fac2VarMessages(updated_poses, updated_dynamics)
         
-        jax.vmap(batched_update_factor_to_var_messages)(
+        return jax.vmap(batched_update_factor_to_var_messages, in_axes=(0, 0, None))(
             Var2FacMessages(var2fac_msgs.poses, var2fac_msgs.dynamics),
             Factors(factors.poses, factors.dynamics),
             var2fac_neighbors,
