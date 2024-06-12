@@ -22,9 +22,10 @@ class Visualizer:
         self.waypoints_data = waypoints
         self.trajs = trajs
         self.agent_radius = agent_radius
-        self.colors = [
-            Visualizer._generate_random_color() for _ in range(len(waypoints))
-        ]
+        # self.colors = [
+        #     Visualizer._generate_random_color() for _ in range(len(waypoints))
+        # ]
+        self.colors = ["red", "blue", "orange", "black"]
         self.n_timesteps = n_timesteps
         self.fig, self.ax = plt.subplots(1, 1, figsize=(5, 5))
 

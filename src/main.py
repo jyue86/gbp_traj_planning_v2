@@ -56,10 +56,10 @@ def main():
     i = 0
     while True:
         env.step()
-        if i == 10 or env.is_done():
+        if env.is_done():
             print("Done!")
             break
-        elif env.is_truncated():
+        elif i == 50 or env.is_truncated():
             print("Truncated!")
             break
         i += 1

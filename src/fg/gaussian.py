@@ -35,13 +35,6 @@ class Gaussian:
         dims = jnp.array([variable, variable, variable, variable])
         return Gaussian(jnp.zeros(4), jnp.eye(4), dims)
     
-    def concatenate(self, other_gaussian: "Gaussian") -> "Gaussian":
-        return Gaussian(
-            jnp.concatenate(self.info, other_gaussian.info),
-            jnp.concatenate(self.precision, other_gaussian.precision),
-            jnp.concatenate(self.dims, other_gaussian.dims)
-        )
-    
     def __getitem__(self, index) -> "Gaussian":
         return Gaussian(self.info[index], self.precision[index], self.dims[index])
 

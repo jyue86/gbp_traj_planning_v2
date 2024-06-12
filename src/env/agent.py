@@ -38,14 +38,16 @@ class Agent:
     
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
         ### START REPLACE
-        gbp_results = self._factor_graph.run_gbp(states, self._var2fac_msgs, self._fac2var_msgs, self._init)
-        marginals = gbp_results["marginals"]
-        self._var2fac_msgs = gbp_results["var2fac"]
-        self._fac2var_msgs = gbp_results["fac2var"]
-        if self._init:
-            self._init = False
-        # then extract marginals
-        marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
+        marginal_belief = states.copy()
+        for _ in range(10):
+            gbp_results = self._factor_graph.run_gbp(marginal_belief, self._var2fac_msgs, self._fac2var_msgs, self._init)
+            marginals = gbp_results["marginals"]
+            self._var2fac_msgs = gbp_results["var2fac"]
+            self._fac2var_msgs = gbp_results["fac2var"]
+            if self._init:
+                self._init = False
+            # then extract marginals
+            marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
 
         # Backup line, can replace when ready
         # marginal_belief = states
@@ -55,10 +57,16 @@ class Agent:
         return next_states
 
     def _init_traj(self, start_state: jnp.ndarray) -> jnp.ndarray:
-        def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
-            carry = self._state_transition @ carry
-            return carry, carry.T
-        _, states = jax.lax.scan(update_state, start_state.T, length=self._time_horizon)
+        # def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
+        #     next_state = self._state_transition @ carry
+        #     return next_state, carry.T
+        key = jax.random.PRNGKey(0)
+        random_noise = jax.random.normal(key, (self._time_horizon, *start_state.T.shape))
+        def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
+            next_state = carry + noise 
+            next_state = next_state.at[2:,:].multiply(self._delta_t)
+            return carry, next_state.T
+        _, states = jax.lax.scan(update_state, start_state.T, random_noise, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
     
@@ -69,7 +77,7 @@ class Agent:
 
     def _transition_to_next_state(self, current_state: jnp.ndarray) -> jnp.ndarray:
         def update_fn(state):
-            x = (self.factor_graph.dynamics_factors.state_transition @ state.reshape((4,1)))
+            x = (self._state_transition @ state.reshape((4,1)))
             return x
         return jax.vmap(update_fn)(current_state)
     

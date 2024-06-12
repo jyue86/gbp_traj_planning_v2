@@ -77,7 +77,7 @@ class DynamicsFactor(Factor):
         )
         precision = jnp.vstack((top_half, bottom_half))
         precision = jnp.linalg.inv(precision)
-        precision = jnp.diag(jnp.array([10, 10, 20, 20]))
+        # precision = jnp.diag(jnp.array([10, 10, 20, 20]))
 
         self.state_transition = jnp.eye(4)
         self.state_transition = self.state_transition.at[0:2, 2:].set(
