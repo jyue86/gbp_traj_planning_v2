@@ -15,9 +15,11 @@ class Environment:
         self.states = agent.initial_state
         self.waypoints = {f"agent{i}": [self.states[i,0,0:2]] for i in range(agent.n_agents)} # T x 2, T being number of timestesp
         self.planned_trajs = {f"agent{i}": [self.states[i,:,0:2]] for i in range(agent.n_agents)} # T X K X 2, K is time horizon
+        self.energies = []
 
     def step(self) -> None:
-        self.states = self.agent.run(self.states)
+        self.states, energies = self.agent.run(self.states)
+        self.energies.append(energies)
         for i in range(self.states.shape[0]):
             self.waypoints[f"agent{i}"].append(self.states[i,0,0:2])
             self.planned_trajs[f"agent{i}"].append(self.states[i,:,0:2])

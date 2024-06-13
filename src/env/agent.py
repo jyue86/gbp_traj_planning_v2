@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from fg import FactorGraph
+from fg.gaussian import Gaussian
 
 class Agent:
     def __init__(
@@ -32,6 +33,13 @@ class Agent:
         self._update_marginals = jax.jit(jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T))
 
         self._factor_graph = FactorGraph(self._n_agents, self._time_horizon, self._end_pos, self._delta_t)
+
+    def get_energy(self, beliefs, factor_likeliood):
+        def energy_helper(info, precision, belief):
+            return Gaussian(info, precision, jnp.ones(4))(belief)
+        
+        temp = jax.vmap(jax.vmap(energy_helper))(beliefs.info, beliefs.precision, factor_likeliood)
+        return -temp.sum(axis=1)
     
     @jax.jit
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
@@ -53,12 +61,11 @@ class Agent:
             updated_fac2var_msgs = gbp_results["fac2var"]
             updated_marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
 
-            return (updated_marginal_belief, updated_var2fac_msgs, updated_fac2var_msgs), _
-        gbp_results, _ = jax.lax.scan(run_gbp, (marginal_belief, var2fac_msgs, fac2var_msgs), length=100)
+            return (updated_marginal_belief, updated_var2fac_msgs, updated_fac2var_msgs), self.get_energy(marginals, updated_marginal_belief)
+        gbp_results, energies = jax.lax.scan(run_gbp, (marginal_belief, var2fac_msgs, fac2var_msgs), length=100)
         marginal_belief = gbp_results[0]
         next_states = self._update_marginals(marginal_belief)
-        jax.debug.print("next states: {}", next_states)
-        return next_states
+        return next_states, energies
 
     @jax.jit
     def _init_traj(self) -> jnp.ndarray:
