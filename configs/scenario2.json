@@ -17,5 +17,5 @@
     ],
     "delta_t": 0.2,
     "max_timesteps": 500,
-    "save_gif_path": "gifs/reverse_scenario2.gif"
+    "save_gif_path": "gifs/scenario2.gif"
 }

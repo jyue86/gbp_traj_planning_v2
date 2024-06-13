@@ -1,11 +1,11 @@
 {
     "agents": {
         "agent1": {
-            "current_state": [5.0, 0.0, 0.0, 0.0],
+            "current_state": [5.0, 0.0, -0.5, 0.0],
             "target_state": [-5.0, 0.0, 0.0, 0.0]
         },
         "agent2": {
-            "current_state": [-5.0, 0.0, 0.0, 0.0],
+            "current_state": [-5.0, 0.0, 0.5, 0.0],
             "target_state": [5.0, 0.0, 0.0, 0.0]
         }
     },

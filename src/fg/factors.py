@@ -9,6 +9,7 @@ N_STATES = 4
 POSE_NOISE = 1e-15
 DYNAMICS_NOISE = 0.005
 OBSTACLE_NOISE = 0.005
+INTER_ROBOT_NOISE = 0.005
 
 
 class Factor:
@@ -90,3 +91,29 @@ class DynamicsFactor(Factor):
         prev_state = state[0:4]
         current_state = state[4:]
         return self.state_transition @ prev_state - current_state
+    
+class InterRobotFactor(Factor):
+    def __init__(
+        self,
+        state: jnp.ndarray,
+        agent_radius: float,
+        critical_distance: float,
+        t: jnp.ndarray, #ndarray just to hold time,
+        dims: jnp.ndarray,
+    ) -> None:
+        self._critical_distance = critical_distance
+        self._agent_radius = agent_radius
+        precision = jnp.pow(t * INTER_ROBOT_NOISE, -2) * jnp.eye(N_STATES)
+        super(InterRobotFactor, self).__init__(state, precision, dims, False)
+
+    def _calc_measurement(self, state: jnp.ndarray):
+        current_state = state[0:4]
+        other_state = state[4:]
+        dist = self._calc_dist(current_state, other_state)
+        measurement = jax.lax.select(
+            dist < self._critical_distance, jnp.full((4,), 1.0 - dist / self._critical_distance), jnp.zeros((4,)) 
+        )
+        return measurement
+    
+    def _calc_dist(self, state: jnp.array, other_state: jnp.array):
+        return jnp.linalg.norm(state[0:2] - other_state[0:2])

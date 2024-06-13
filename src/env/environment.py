@@ -18,7 +18,7 @@ class Environment:
         self.energies = []
 
     def step(self) -> None:
-        self.states, energies = self.agent.run(self.states)
+        self.states, energies = self.agent.run(self.states, self.timesteps)
         self.energies.append(energies)
         for i in range(self.states.shape[0]):
             self.waypoints[f"agent{i}"].append(self.states[i,0,0:2])
