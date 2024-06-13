@@ -64,18 +64,20 @@ def main():
         elif env.is_truncated():
             print("Truncated!")
             break
-
-    eng = jnp.stack(env.energies)
-    plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
-    plt.plot(eng[1:,1:, 0], color="b")
-    plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
-    plt.plot(eng[1:, 1:, 1], color="r")
     
-    plt.title("Expected Energy vs. Timesteps")
-    plt.ylabel("Energy")
-    plt.xlabel("Timesteps")
-    plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
-    plt.show(block=True)
+    maybe_plot_energies = False
+    if maybe_plot_energies:
+        eng = jnp.stack(env.energies)
+        plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
+        plt.plot(eng[1:,1:, 0], color="b")
+        plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
+        plt.plot(eng[1:, 1:, 1], color="r")
+        
+        plt.title("Expected Energy vs. Timesteps")
+        plt.ylabel("Energy")
+        plt.xlabel("Timesteps")
+        plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
+        plt.show(block=True)
     env.render()
 
 

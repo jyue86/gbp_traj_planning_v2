@@ -9,27 +9,27 @@ from .factors import PoseFactor, DynamicsFactor
 
 
 # TODO: replace iters with time horizon
-def init_var2fac_neighbors(iters: int) -> Dict:
+def init_var2fac_neighbors(time_horizon: int) -> Dict:
     def create_dynamic_dims(carry, _):
         return carry + 2, carry
 
-    _, dynamic_dims = jax.lax.scan(create_dynamic_dims, jnp.array([2, 1]), length=iters)
+    _, dynamic_dims = jax.lax.scan(create_dynamic_dims, jnp.array([2, 1]), length=time_horizon - 2)
     dynamic_dims = dynamic_dims.flatten()
 
     return {"dynamics": dynamic_dims}
 
 
-def init_fac2var_neighbors(iters: int) -> Dict:
+def init_fac2var_neighbors(time_horizon: int) -> Dict:
     def create_dynamic_dims(carry, _):
         return carry + 2, carry
 
-    _, dynamic_dims = jax.lax.scan(create_dynamic_dims, jnp.array([2, 1]), length=iters)
+    _, dynamic_dims = jax.lax.scan(create_dynamic_dims, jnp.array([2, 1]), length=time_horizon - 1)
     dynamic_dims = dynamic_dims.flatten()
 
     def create_factor_dims(carry, _):
         return carry + 1, carry
 
-    _, factor_dims = jax.lax.scan(create_factor_dims, jnp.array([0, 0]), length=iters)
+    _, factor_dims = jax.lax.scan(create_factor_dims, jnp.array([0, 0]), length=time_horizon - 1)
     factor_dims = factor_dims.flatten()
 
     def create_marginalize_order(carry, _):
@@ -38,23 +38,30 @@ def init_fac2var_neighbors(iters: int) -> Dict:
     _, marg_order = jax.lax.scan(
         create_marginalize_order,
         jnp.array([2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]),
-        length=iters,
+        length=time_horizon - 1,
     )
     marg_order = jnp.stack(jnp.split(marg_order.flatten(), 6))
 
     return {"dynamics": dynamic_dims, "factors": factor_dims, "margs": marg_order}
 
+@dataclass
+class InterRobotVar2FacMessages:
+    robots: jnp.ndarray
+
+@dataclass
+class InterRobotFac2VarMessages:
+    robots: jnp.ndarray
 
 @dataclass
 class Var2FacMessages:
-    poses: jnp.array
-    dynamics: jnp.array
+    poses: jnp.ndarray
+    dynamics: jnp.ndarray
 
 
 @dataclass
 class Fac2VarMessages:
-    poses: jnp.array
-    dynamics: jnp.array
+    poses: jnp.ndarray
+    dynamics: jnp.ndarray
 
 
 @dataclass
@@ -77,8 +84,8 @@ class FactorGraph:
         self._delta_t = delta_t
 
         self._outer_idx = jnp.array([0, -1])
-        self._var2fac_neighbors = init_var2fac_neighbors(time_horizon - 2)
-        self._fac2var_neighbors = init_fac2var_neighbors(time_horizon - 1)
+        self._var2fac_neighbors = init_var2fac_neighbors(time_horizon)
+        self._fac2var_neighbors = init_fac2var_neighbors(time_horizon)
 
     def run_gbp_init(
         self,
