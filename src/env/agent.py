@@ -29,47 +29,52 @@ class Agent:
 
         self._state_transition = jnp.eye(4)
         self._state_transition = self._state_transition.at[:2,2:].set(jnp.eye(2) * self._delta_t)
-        self._initial_state = self._init_traj(start_state)
         self._update_marginals = jax.jit(jax.vmap(lambda horizon_states: (self._state_transition @ horizon_states.T).T))
 
         self._factor_graph = FactorGraph(self._n_agents, self._time_horizon, self._end_pos, self._delta_t)
-        self._var2fac_msgs = self._factor_graph.init_var2fac_msgs()
-
-        gbp_results = self._factor_graph.run_gbp_init(self._initial_state, self._var2fac_msgs)
-        self._var2fac_msgs = gbp_results["var2fac"]
-        self._fac2var_msgs = gbp_results["fac2var"]
     
+    @jax.jit
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
         marginal_belief = states.copy()
 
-        for _ in range(10):
-            gbp_results = self._factor_graph.run_gbp(marginal_belief, self._var2fac_msgs, self._fac2var_msgs)
-            marginals = gbp_results["marginals"]
-            self._var2fac_msgs = gbp_results["var2fac"]
-            self._fac2var_msgs = gbp_results["fac2var"]
-            # then extract marginals
-            marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
+        var2fac_msgs = self._factor_graph.init_var2fac_msgs()
+        gbp_results = self._factor_graph.run_gbp_init(marginal_belief, var2fac_msgs)
+        var2fac_msgs = gbp_results["var2fac"]
+        fac2var_msgs = gbp_results["fac2var"]
 
+        def run_gbp(carry, _):
+            marginal_belief = carry[0]
+            var2fac_msgs = carry[1]
+            fac2var_msgs = carry[2]
+            
+            gbp_results = self._factor_graph.run_gbp(marginal_belief, var2fac_msgs, fac2var_msgs)
+            marginals = gbp_results["marginals"]
+            updated_var2fac_msgs = gbp_results["var2fac"]
+            updated_fac2var_msgs = gbp_results["fac2var"]
+            updated_marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
+
+            return (updated_marginal_belief, updated_var2fac_msgs, updated_fac2var_msgs), _
+        gbp_results, _ = jax.lax.scan(run_gbp, (marginal_belief, var2fac_msgs, fac2var_msgs), length=100)
+        marginal_belief = gbp_results[0]
         next_states = self._update_marginals(marginal_belief)
+        jax.debug.print("next states: {}", next_states)
         return next_states
 
-    # @jax.jit
-    "could not jit bc I call this in __init__()"
-    def _init_traj(self, start_state: jnp.ndarray) -> jnp.ndarray:
+    @jax.jit
+    def _init_traj(self) -> jnp.ndarray:
         # def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
         #     next_state = self._state_transition @ carry
         #     return next_state, carry.T
         key = jax.random.PRNGKey(0)
-        random_noise = jax.random.normal(key, (self._time_horizon, *start_state.T.shape))
+        random_noise = jax.random.normal(key, (self._time_horizon, *self._start_state.T.shape))
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
             next_state = carry + noise 
             next_state = next_state.at[2:,:].multiply(self._delta_t)
             return carry, next_state.T
-        _, states = jax.lax.scan(update_state, start_state.T, random_noise, length=self._time_horizon)
+        _, states = jax.lax.scan(update_state, self._start_state.T, random_noise, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
     
-    @jax.jit
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
             return (jnp.linalg.inv(state_precision)  @ state_info.reshape(-1,1)).flatten()
@@ -84,7 +89,7 @@ class Agent:
     
     @property
     def initial_state(self) -> jnp.ndarray:
-        return self._initial_state
+        return self._init_traj()
     
     @property
     def agent_radius(self) -> float:

@@ -80,7 +80,6 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon - 2)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon - 1)
 
-    @jax.jit
     def run_gbp_init(
         self,
         states: jnp.ndarray,
@@ -97,7 +96,6 @@ class FactorGraph:
             "marginals": marginals,
         }
 
-    @jax.jit
     def run_gbp(
         self,
         states: jnp.ndarray,
@@ -236,7 +234,7 @@ class FactorGraph:
     def init_var2fac_msgs(self) -> Var2FacMessages:
         pose_msgs = jax.vmap(jax.vmap(lambda _, var: Gaussian.identity(var)))(
             jnp.zeros((self._n_agents, 2)),
-            jnp.repeat(jnp.array([[1, self._time_horizon]]), self._n_agents, axis=0),
+            jnp.repeat(jnp.array([[1, self._time_horizon]], dtype=jnp.float32), self._n_agents, axis=0),
         )
 
         def create_dynamics_axes(
@@ -245,13 +243,13 @@ class FactorGraph:
             return carry + 1, carry
 
         _, dynamics_axes = jax.lax.scan(
-            create_dynamics_axes, jnp.array([2, 2]), length=self._time_horizon - 2
+            create_dynamics_axes, jnp.array([2, 2], dtype=jnp.float32), length=self._time_horizon - 2
         )
         dynamics_axes = jnp.concat(
             (
-                jnp.array([[1]]),
+                jnp.array([[1]], dtype=jnp.float32),
                 dynamics_axes.reshape((1, -1)),
-                jnp.array([[self._time_horizon]]),
+                jnp.array([[self._time_horizon]], dtype=jnp.float32),
             ),
             axis=1,
         )

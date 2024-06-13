@@ -71,7 +71,7 @@ class Gaussian:
         # Add
         prec = prec_other + prec_self
         info = info_other + info_self
-        return Gaussian(info, prec, dims)
+        return Gaussian(info, prec, dims.astype(float))
     
     def marginalize(self, dims_to_remove) -> "Gaussian":
         info, prec = self.info.reshape(-1, 1), self.precision
@@ -90,5 +90,5 @@ class Gaussian:
         info_ = info_a - prec_ab @ prec_bb_inv @ info_b
         prec_ = prec_aa - prec_ab @ prec_bb_inv @ prec_ba
 
-        new_dims = jnp.full(4, self.dims[axis_a[0]], dtype=int)
+        new_dims = jnp.full(4, self.dims[axis_a[0]], dtype=jnp.float32)
         return Gaussian(info_.flatten(), prec_, new_dims)
