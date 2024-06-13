@@ -69,15 +69,15 @@ class Agent:
 
     @jax.jit
     def _init_traj(self) -> jnp.ndarray:
-        # def update_state(carry: jnp.array, _: int) -> Tuple[jnp.array, int]:
-        #     next_state = self._state_transition @ carry
-        #     return next_state, carry.T
         key = jax.random.PRNGKey(0)
         random_noise = jax.random.normal(key, (self._time_horizon, *self._start_state.T.shape))
+        # def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
+        #     next_state = carry + noise 
+        #     next_state = next_state.at[2:,:].multiply(self._delta_t)
+        #     return carry, next_state.T
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
-            next_state = carry + noise 
-            next_state = next_state.at[2:,:].multiply(self._delta_t)
-            return carry, next_state.T
+            next_state = (self._state_transition @ carry) + noise
+            return next_state, carry.T
         _, states = jax.lax.scan(update_state, self._start_state.T, random_noise, length=self._time_horizon)
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states

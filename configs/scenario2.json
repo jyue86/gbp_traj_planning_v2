@@ -1,12 +1,12 @@
 {
     "agents": {
         "agent1": {
-            "current_state": [5.0, 3.0, 0.0, 0.0],
-            "target_state": [8.0, 3.0, 0.0, 0.0]
+            "current_state": [5.0, 3.0, -0.5, 0.0],
+            "target_state": [-8.0, 3.0, 0.0, 0.0]
         },
         "agent2": {
-            "current_state": [-5.0, 3.0, 0.0, 0.0],
-            "target_state": [-8.0, 3.0, 0.0, 0.0]
+            "current_state": [-5.0, -3.0, 0.5, 0.0],
+            "target_state": [8.0, -3.0, 0.0, 0.0]
         }
     },
     "agent_radius": 0.2,
@@ -17,5 +17,5 @@
     ],
     "delta_t": 0.2,
     "max_timesteps": 500,
-    "save_gif_path": "gifs/scenario0_5.gif"
+    "save_gif_path": "gifs/reverse_scenario2.gif"
 }
