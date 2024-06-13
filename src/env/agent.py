@@ -40,7 +40,6 @@ class Agent:
         self._fac2var_msgs = gbp_results["fac2var"]
     
     def run(self, states: jnp.ndarray) -> jnp.ndarray:
-        ### START REPLACE
         marginal_belief = states.copy()
 
         for _ in range(10):
@@ -50,10 +49,6 @@ class Agent:
             self._fac2var_msgs = gbp_results["fac2var"]
             # then extract marginals
             marginal_belief = self._extract_mean(marginals.info, marginals.precision) 
-
-        # Backup line, can replace when ready
-        # marginal_belief = states
-        ### END OF REPLACE
 
         next_states = self._update_marginals(marginal_belief)
         return next_states
@@ -104,12 +99,6 @@ class Agent:
         return self._end_pos
 
     def _tree_flatten(self):
-        # start_state: jnp.ndarray,
-        # end_pos: jnp.ndarray,
-        # agent_radius: float,
-        # crit_distance: float,
-        # delta_t: float,
-        # time_horizon: float=10,
         children = (self._start_state, self._end_pos)
         aux_data = {
             "agent_radius": self._agent_radius,

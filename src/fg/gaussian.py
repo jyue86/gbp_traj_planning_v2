@@ -45,23 +45,6 @@ class Gaussian:
         dims = self.dims.copy()
         other_dims = other.dims.copy()
         other_unique_val = jnp.unique(other_dims, size=other_dims.shape[0]//4)[0]
-        # jax.debug.print("other unique val: {}", other_unique_val)
-        # is_other_in_dims = jnp.where(dims == other_unique_val, 1.0, 0.0).sum()
-        # jax.debug.print("is other in dims: {}", is_other_in_dims)
-
-        # idxs_self = jax.lax.select(
-        #     jnp.array_equal(dims, other_dims), 
-        #     jnp.arange(len(dims)),
-        #     jax.lax.select(is_other_in_dims == 4,
-        #                 jnp.arange(len(dims), dtype=int),
-        #                 jnp.arange(len(dims), dtype=int)))
-        # # dims = jax.lax.cond(jnp.array_equal(dims, other_dims), lambda: dims, lambda: jnp.concatenate((dims, other_dims)))
-        # idxs_other = jax.lax.select(
-        #     jnp.array_equal(dims, other_dims), 
-        #     jnp.arange(len(dims)),
-        #     jax.lax.select(is_other_in_dims == 4,
-        #                 jnp.where(dims == other_unique_val, size=4)[0],
-        #                 jnp.arange(len(dims), len(dims) + len(other_dims))))
         
         if dims.shape[0] == other_dims.shape[0] and (dims == other_dims).sum() == dims.shape[0]:
             idxs_self = idxs_other = jnp.arange(len(dims))

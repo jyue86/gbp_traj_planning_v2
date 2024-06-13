@@ -80,6 +80,7 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon - 2)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon - 1)
 
+    @jax.jit
     def run_gbp_init(
         self,
         states: jnp.ndarray,
@@ -89,7 +90,6 @@ class FactorGraph:
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         )
-        # updated_fac2var_msgs = None
         marginals = self._update_marginal_beliefs(updated_fac2var_msgs)
         return {
             "var2fac": init_var2fac_msgs,
@@ -97,6 +97,7 @@ class FactorGraph:
             "marginals": marginals,
         }
 
+    @jax.jit
     def run_gbp(
         self,
         states: jnp.ndarray,
@@ -110,7 +111,6 @@ class FactorGraph:
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         )
-        # updated_fac2var_msgs = None
         marginals = self._update_marginal_beliefs(updated_fac2var_msgs)
         return {
             "var2fac": updated_var2fac_msgs,
@@ -127,7 +127,6 @@ class FactorGraph:
         def batched_update_factor_to_var_messages(
             agent_var2fac_msgs: Var2FacMessages, factors: Factors, neighbors: Dict
         ) -> Fac2VarMessages:
-            # poses = agent_var2fac_msgs.poses
             dynamics = agent_var2fac_msgs.dynamics
 
             updated_poses = factors.poses
@@ -138,13 +137,9 @@ class FactorGraph:
                 return g1 * g2
 
             def fn(i):
-                # jax.debug.print("factor likelihood dims: {}:", f_likelihoods[i].dims)
-                # jax.debug.print("dynamics dims: {}:", dynamics[neighbors["dynamics"]][i].dims)
                 mult_result = multiply_gaussians(
                     f_likelihoods[i], dynamics[neighbors["dynamics"]][i]
                 )
-                # jax.debug.print("mult result, i: {}, {}", mult_result.dims, i)
-                # jax.debug.print("marginalize order: {}", marginalize_order[i])
                 return mult_result.marginalize(marginalize_order[i])
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
         
