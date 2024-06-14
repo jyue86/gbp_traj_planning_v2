@@ -79,13 +79,14 @@ class Var2FacMessages:
 class Fac2VarMessages:
     poses: Gaussian
     dynamics: Gaussian
-    ir: Gaussian
+    ir: Gaussian = None
 
 
 @dataclass
 class Factors:
     poses: Gaussian
     dynamics: Gaussian
+    ir: Gaussian = None
 
 
 class FactorGraph:
@@ -173,12 +174,21 @@ class FactorGraph:
         self,
         states: jnp.ndarray,
         init_var2fac_msgs: Var2FacMessages,
+        time: jnp.ndarray,
         # inter_robot_fac2var_msgs: InterRobotFac2VarMessages,
     ) -> Dict:
         updated_factor_likelihoods = self._update_factor_likelihoods(states)
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         )
+        closest_robots = FactorGraph.find_closest_robot(states)
+        ir_factor_likelihoods = self._update_inter_robot_factor_likelihoods(
+            states, closest_robots, time
+        )
+        updated_fac2var_msgs = self._update_factor_to_var_messages(
+            init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
+        ).replace(ir=self._inter_robot_factor_to_var_messages(init_var2fac_msgs.ir, ir_factor_likelihoods))
+        
         marginals = self._update_marginal_beliefs(
             updated_fac2var_msgs, # inter_robot_fac2var_msgs
         )
@@ -193,15 +203,20 @@ class FactorGraph:
         states: jnp.ndarray,
         var2fac_msgs: Var2FacMessages,
         fac2var_msgs: Fac2VarMessages,
+        time: jnp.ndarray,
         # inter_robot_fac2var_msgs: InterRobotFac2VarMessages,
     ) -> Dict:
         updated_var2fac_msgs = self._update_var_to_factor_messages(
             fac2var_msgs, self._var2fac_neighbors
         )
         updated_factor_likelihoods = self._update_factor_likelihoods(states)
+        closest_robots = FactorGraph.find_closest_robot(states)
+        ir_factor_likelihoods = self._update_inter_robot_factor_likelihoods(
+            states, closest_robots, time
+        )
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
-        )
+        ).replace(ir=self._inter_robot_factor_to_var_messages(var2fac_msgs.ir, ir_factor_likelihoods))
         marginals = self._update_marginal_beliefs(
             updated_fac2var_msgs, # inter_robot_fac2var_msgs
         )
@@ -211,14 +226,15 @@ class FactorGraph:
             "marginals": marginals,
         }
 
+    @jax.vmap
     def _inter_robot_factor_to_var_messages(
             self,
-            agent_var2fac_msgs: InterRobotVar2FacMessages,
-            agent_factors: InterRobotFactors,
+            agent_var2fac_msgs: Var2FacMessages,
+            agent_factors: Factors,
         ):
-            robot_msgs = agent_var2fac_msgs.robot # Message from closest robot at time t to robot i for index [i, t, ...]
+            robot_msgs = agent_var2fac_msgs # Message from closest robot at time t to robot i for index [i, t, ...]
 
-            def multiply_gaussians(factor_likelihood, msg):
+            def multiply_gaussians(factor_likelihood, msg):\
                 return factor_likelihood * msg
 
             sum_product_fn = lambda g0, g1, marginal_order: multiply_gaussians(g0, g1).marginalize(marginal_order)
@@ -263,11 +279,11 @@ class FactorGraph:
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
             # jax.debug.breakpoint()
 
-            return Fac2VarMessages(updated_poses, updated_dynamics, self._inter_robot_factor_to_var_messages(agent_var2fac_msgs.ir, factors))
+            return Fac2VarMessages(updated_poses, updated_dynamics)
 
         return jax.vmap(batched_update_factor_to_var_messages, in_axes=(0, 0, None))(
-            Var2FacMessages(var2fac_msgs.poses, var2fac_msgs.dynamics),
-            Factors(factors.poses, factors.dynamics),
+            var2fac_msgs,
+            factors,
             var2fac_neighbors,
         )
 
@@ -282,6 +298,9 @@ class FactorGraph:
             ir = agent_fac2var_msgs.ir
 
             multiply_fn = lambda x, y: x * y
+
+            def multiply_fn(x, y):
+                return x * y
             outer_ir = jax.vmap(multiply_fn)(dynamics[self._outer_idx], poses)
             inner_ir = jax.vmap(multiply_fn)(dynamics[1:], dynamics[:-1])
 
@@ -311,7 +330,7 @@ class FactorGraph:
     def find_closest_robot(states: jnp.ndarray):
         def find_closest_robot_across_horizon(robot, other_robots):
             closest_index = jnp.argmin(jnp.linalg.norm(robot[0:2] - other_robots[:,0:2], axis=1))
-            return closest_index
+            return other_robots[closest_index]
 
         def find_batched_closest_robot(batch_states, i):
             modified_states = batch_states.at[i].set(jnp.inf)
@@ -344,7 +363,7 @@ class FactorGraph:
             return inter_robot_likelihoods
 
         return jax.vmap(batch_update_factor_likelihoods, in_axes=(0, 0, None))(
-            states, other_states, time
+            states, other_states, time,
         )
 
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
@@ -403,11 +422,11 @@ class FactorGraph:
             # robot_info = jnp.zeros((4,4))
             # robot_info = robot_info.at[0].set(jnp.array([0, -0.5, 0, 0]))
             intra_info = jnp.concat((outer_info[0:1], inner_info, outer_info[-1:]))
-            marginal_info = intra_info # + agent_inter_fac2var_msgs.robot.info
+            marginal_info = intra_info + agent_fac2var_msgs.ir.info
             intra_precision = jnp.concat(
                 (outer_precision[0:1], inner_precision, outer_precision[-1:])
             )
-            marginal_precision = intra_precision # + agent_inter_fac2var_msgs.robot.precision
+            marginal_precision = intra_precision + agent_fac2var_msgs.ir.precision
 
             return Gaussian(
                 info=marginal_info,

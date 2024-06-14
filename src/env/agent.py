@@ -87,7 +87,7 @@ class Agent:
 
         var2fac_msgs = self._factor_graph.init_var2fac_msgs()
         # gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
-        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs)
+        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, time)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
 
@@ -100,7 +100,7 @@ class Agent:
             #     current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
             # )
             gbp_results = self._factor_graph.run_gbp(
-                current_mean, var2fac_msgs, fac2var_msgs 
+                current_mean, var2fac_msgs, fac2var_msgs, time
             )
             marginals = gbp_results["marginals"]
             updated_var2fac_msgs = gbp_results["var2fac"]
