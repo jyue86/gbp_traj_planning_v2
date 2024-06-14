@@ -4,12 +4,10 @@ from typing import Dict
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerTuple
 
-import jax
 import jax.numpy as jnp
 from env import Agent, Environment, Obstacle
 from utils import load_json
 
-jax.config.update("jax_enable_x64", True)
 
 def init(scenario_config: Dict) -> Dict:
     states = []
