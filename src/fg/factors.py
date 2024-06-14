@@ -110,9 +110,18 @@ class InterRobotFactor(Factor):
         current_state = state[0:4]
         other_state = state[4:]
         dist = self._calc_dist(current_state, other_state)
+        # jax.debug.print("dist: {}", dist)
         measurement = jax.lax.select(
             dist < self._critical_distance, jnp.full((4,), 1.0 - dist / self._critical_distance), jnp.zeros((4,)) 
         )
+        # def breakpoint_if_less(dist):
+        #     cond = dist < self._critical_distance
+        #     def true_fn(x):
+        #         jax.debug.breakpoint()
+        #     def false_fn(x):
+        #         pass
+        #     jax.lax.cond(cond, true_fn, false_fn, dist)
+        # breakpoint_if_less(dist)
         return measurement
     
     def _calc_dist(self, state: jnp.array, other_state: jnp.array):

@@ -11,7 +11,7 @@
     },
     "agent_radius": 0.2,
     "obstacle_radius": 1,
-    "safety_distance": 0.5,
+    "safety_distance": 1,
     "obstacle_pos": [
         [100, 100]
     ],

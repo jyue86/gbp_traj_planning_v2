@@ -1,2 +1,0 @@
-If we have the original factor implementation for poses AND the velocities are actually the oppositie of what they're 
-supposed to be, then the trajectories sorta make sense

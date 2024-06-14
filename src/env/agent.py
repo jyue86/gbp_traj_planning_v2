@@ -86,7 +86,7 @@ class Agent:
         # end for inter robot
 
         var2fac_msgs = self._factor_graph.init_var2fac_msgs()
-        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs)
+        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
 
@@ -96,14 +96,16 @@ class Agent:
             fac2var_msgs = carry[2]
 
             gbp_results = self._factor_graph.run_gbp(
-                current_mean, var2fac_msgs, fac2var_msgs
+                current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
             )
             marginals = gbp_results["marginals"]
+            jax.debug.print("after updating marginal beliefs: {}", marginals.info)
             updated_var2fac_msgs = gbp_results["var2fac"]
             updated_fac2var_msgs = gbp_results["fac2var"]
             updated_mean = self._extract_mean(
                 marginals.info, marginals.precision
             )
+            jax.debug.print("the updated mean: {}", updated_mean)
 
             return (
                 updated_mean,
@@ -116,31 +118,34 @@ class Agent:
         )
         mean = gbp_results[0]
         next_states = self._update_marginals(mean)
+        jax.debug.print("bwoah next states: {}", next_states)
         return next_states, energies
 
     @jax.jit
     def _init_traj(self) -> jnp.ndarray:
-        # key = jax.random.PRNGKey(0)
-        # random_noise = jax.random.normal(key, (self._time_horizon, *self._start_state.T.shape))
+        key = jax.random.PRNGKey(0)
+        random_noise = jax.random.normal(key, (self._time_horizon, *self._start_state.T.shape))
         # def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
         #     next_state = carry + noise
         #     next_state = next_state.at[2:,:].multiply(self._delta_t)
         #     return carry, next_state.T
-        def update_state(carry: jnp.ndarray, _: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
-            next_state = self._state_transition @ carry
+        def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
+            next_state = (self._state_transition @ carry) + noise
             return next_state, carry.T
 
         _, states = jax.lax.scan(
-            update_state, self._start_state.T, length=self._time_horizon
+            update_state, self._start_state.T, random_noise, length=self._time_horizon
         )
         initial_states = jnp.swapaxes(states, 0, 1)
         return initial_states
 
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
-            return (
-                jnp.linalg.inv(state_precision) @ state_info.reshape(-1, 1)
-            ).flatten()
+            jax.debug.print("state info: {}", state_info)
+            jax.debug.print("state precision: {}", state_precision)
+            moments_mean = (jnp.linalg.inv(state_precision) @ state_info.reshape(-1, 1)).flatten()
+            jax.debug.print("moments mean: {}", moments_mean)
+            return moments_mean
 
         return jax.vmap(jax.vmap(batched_extract_mean))(info, precision)
 

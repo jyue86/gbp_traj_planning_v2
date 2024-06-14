@@ -4,6 +4,7 @@ from typing import Dict
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerTuple
 
+import jax
 import jax.numpy as jnp
 from env import Agent, Environment, Obstacle
 from utils import load_json
@@ -21,6 +22,7 @@ def init(scenario_config: Dict) -> Dict:
     crit_distance = (
         2 * scenario_config["agent_radius"] + scenario_config["safety_distance"]
     )
+    jax.debug.print("crit distance: {}", crit_distance)
     # obstacle_radius = scenario_config["obstacle_radius"]
     obstacle_pos = jnp.array(scenario_config["obstacle_pos"])
     obstacle = Obstacle(obstacle_pos)
@@ -56,6 +58,7 @@ def main():
         save_gif_path=env_data["save_gif_path"]
     )
 
+    i = 0
     while True:
         env.step()
         if env.is_done():
@@ -64,6 +67,8 @@ def main():
         elif env.is_truncated():
             print("Truncated!")
             break
+        i += 1
+    print("Iterations:", i)
     
     maybe_plot_energies = False
     if maybe_plot_energies:
