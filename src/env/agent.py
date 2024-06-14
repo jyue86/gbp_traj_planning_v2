@@ -63,30 +63,31 @@ class Agent:
         mean = states.copy()
 
         # code for inter robot
-        inter_robot_var2fac_msgs = self._factor_graph.init_inter_robot_var2fac_msgs()
-        inter_gbp_results = self._factor_graph.run_inter_robot_gbp_init(states, inter_robot_var2fac_msgs, time)
-        inter_var2fac_msgs = inter_gbp_results["var2fac"]
-        inter_fac2var_msgs = inter_gbp_results["fac2var"]
+        # inter_robot_var2fac_msgs = self._factor_graph.init_inter_robot_var2fac_msgs()
+        # inter_gbp_results = self._factor_graph.run_inter_robot_gbp_init(states, inter_robot_var2fac_msgs, time)
+        # inter_var2fac_msgs = inter_gbp_results["var2fac"]
+        # inter_fac2var_msgs = inter_gbp_results["fac2var"]
 
-        def run_inter_gbp(carry, _):
-            current_mean = carry[0]
-            var2fac_msgs = carry[1]
-            fac2var_msgs = carry[2]
+        # def run_inter_gbp(carry, _):
+        #     current_mean = carry[0]
+        #     var2fac_msgs = carry[1]
+        #     fac2var_msgs = carry[2]
             
-            inter_gbp_results = self._factor_graph.run_inter_robot_gbp(current_mean, var2fac_msgs, fac2var_msgs, time)
-            # marginals = gbp_results["marginals"]
-            updated_var2fac_msgs = inter_gbp_results["var2fac"]
-            updated_fac2var_msgs = inter_gbp_results["fac2var"]
-            # updated_marginal_mean = self._extract_mean(marginals.info, marginals.precision) 
+        #     inter_gbp_results = self._factor_graph.run_inter_robot_gbp(current_mean, var2fac_msgs, fac2var_msgs, time)
+        #     # marginals = gbp_results["marginals"]
+        #     updated_var2fac_msgs = inter_gbp_results["var2fac"]
+        #     updated_fac2var_msgs = inter_gbp_results["fac2var"]
+        #     # updated_marginal_mean = self._extract_mean(marginals.info, marginals.precision) 
 
-            # return (updated_marginal_mean, updated_var2fac_msgs, updated_fac2var_msgs)
-            return (current_mean, updated_var2fac_msgs, updated_fac2var_msgs), _
-        inter_gbp_results, _ = jax.lax.scan(run_inter_gbp, (mean, inter_var2fac_msgs, inter_fac2var_msgs), length=10)
-        inter_fac2var_msgs = inter_gbp_results[2]
+        #     # return (updated_marginal_mean, updated_var2fac_msgs, updated_fac2var_msgs)
+        #     return (current_mean, updated_var2fac_msgs, updated_fac2var_msgs), _
+        # inter_gbp_results, _ = jax.lax.scan(run_inter_gbp, (mean, inter_var2fac_msgs, inter_fac2var_msgs), length=10)
+        # inter_fac2var_msgs = inter_gbp_results[2]
         # end for inter robot
 
         var2fac_msgs = self._factor_graph.init_var2fac_msgs()
-        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
+        # gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
+        gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
         init_marginals = gbp_results["marginals"]
@@ -97,17 +98,19 @@ class Agent:
             var2fac_msgs = carry[1]
             fac2var_msgs = carry[2]
 
+            # gbp_results = self._factor_graph.run_gbp(
+            #     current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
+            # )
             gbp_results = self._factor_graph.run_gbp(
-                current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
+                current_mean, var2fac_msgs, fac2var_msgs 
             )
             marginals = gbp_results["marginals"]
-            # jax.debug.print("after updating marginal beliefs: {}", marginals.info)
             updated_var2fac_msgs = gbp_results["var2fac"]
             updated_fac2var_msgs = gbp_results["fac2var"]
             updated_mean = self._extract_mean(
                 marginals.info, marginals.precision
             )
-            # jax.debug.print("the updated mean: {}", updated_mean)
+            jax.debug.print("the updated mean: {}", updated_mean)
 
             return (
                 updated_mean,
@@ -132,7 +135,7 @@ class Agent:
         #     next_state = next_state.at[2:,:].multiply(self._delta_t)
         #     return carry, next_state.T
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
-            next_state = (self._state_transition @ carry) + noise
+            next_state = (self._state_transition @ carry) # + noise
             return next_state, carry.T
 
         _, states = jax.lax.scan(
@@ -144,10 +147,7 @@ class Agent:
 
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
-            # jax.debug.print("state info: {}", state_info)
-            # jax.debug.print("state precision: {}", state_precision)
             moments_mean = (jnp.linalg.inv(state_precision) @ state_info.reshape(-1, 1)).flatten()
-            # jax.debug.print("moments mean: {}", moments_mean)
             return moments_mean
 
         return jax.vmap(jax.vmap(batched_extract_mean))(info, precision)

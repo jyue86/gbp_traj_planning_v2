@@ -93,5 +93,5 @@ class Gaussian:
         info_ = info_a - prec_ab @ prec_bb_inv @ info_b
         prec_ = prec_aa - prec_ab @ prec_bb_inv @ prec_ba
 
-        new_dims = jnp.full(4, self.dims[axis_a[0]], dtype=jnp.float32)
+        new_dims = jnp.full(4, self.dims[axis_a[0]])
         return Gaussian(info_.flatten(), prec_, new_dims)
