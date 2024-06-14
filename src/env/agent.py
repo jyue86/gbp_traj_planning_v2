@@ -112,7 +112,7 @@ class Agent:
                 updated_mean,
                 updated_var2fac_msgs,
                 updated_fac2var_msgs,
-            ), self._factor_graph.get_energy(marginals, updated_mean)
+            ), self._factor_graph.get_energy(updated_mean)
 
         gbp_results, energies = jax.lax.scan(
             run_gbp, (mean, var2fac_msgs, fac2var_msgs), length=200
