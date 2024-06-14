@@ -10,7 +10,7 @@ class Environment:
         self.max_timesteps = max_timesteps 
         self.obstacle = obstacle
         self.save_gif_path = save_gif_path
-        self.timesteps = 0
+        self.timesteps = jnp.ones((1,))
 
         self.states = agent.initial_state
         self.waypoints = {f"agent{i}": [self.states[i,0,0:2]] for i in range(agent.n_agents)} # T x 2, T being number of timestesp
@@ -18,12 +18,12 @@ class Environment:
         self.energies = []
 
     def step(self) -> None:
-        self.states, energies = self.agent.run(self.states)
+        self.states, energies = self.agent.run(self.states, self.timesteps)
         self.energies.append(energies)
         for i in range(self.states.shape[0]):
             self.waypoints[f"agent{i}"].append(self.states[i,0,0:2])
             self.planned_trajs[f"agent{i}"].append(self.states[i,:,0:2])
-        self.timesteps += 1
+        self.timesteps = self.timesteps.at[0].add(1)
     
     def _get_closest_obstacles(self) -> None:
         pass
@@ -37,7 +37,7 @@ class Environment:
             self.planned_trajs[key] = jnp.stack(self.planned_trajs[key])
         
         visualizer = Visualizer(
-            self.timesteps, self.agent.agent_radius, self.waypoints, self.planned_trajs
+            int(self.timesteps[0]), self.agent.agent_radius, self.waypoints, self.planned_trajs
         )
         visualizer.animate(save_fname=self.save_gif_path)
     
