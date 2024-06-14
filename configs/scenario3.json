@@ -2,11 +2,11 @@
     "agents": {
         "agent1": {
             "current_state": [5.0, 3.0, 0.0, 0.5],
-            "target_state": [8.0, 3.0, 0.0, 0.0]
+            "target_state": [5.0, 6.0, 0.0, 0.0]
         },
         "agent2": {
-            "current_state": [-5.0, 3.0, 0.0, -0.5],
-            "target_state": [-8.0, -3.0, 0.0, 0.0]
+            "current_state": [-5.0, -3.0, 0.0, -0.5],
+            "target_state": [-5.0, -6.0, 0.0, 0.0]
         }
     },
     "agent_radius": 0.2,
@@ -16,6 +16,6 @@
         [100, 100]
     ],
     "delta_t": 0.2,
-    "max_timesteps": 500,
+    "max_timesteps": 200,
     "save_gif_path": "gifs/scenario3.gif"
 }

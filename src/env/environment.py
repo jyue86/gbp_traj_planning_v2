@@ -1,7 +1,9 @@
+import jax
 import jax.numpy as jnp
+from viz import Visualizer
+
 from .agent import Agent
 from .obstacle import Obstacle
-from viz import Visualizer
 
 
 class Environment:
@@ -13,6 +15,7 @@ class Environment:
         self.timesteps = jnp.ones((1,))
 
         self.states = agent.initial_state
+        # jax.debug.print("Initial states: {}", self.states)
         self.waypoints = {f"agent{i}": [self.states[i,0,0:2]] for i in range(agent.n_agents)} # T x 2, T being number of timestesp
         self.planned_trajs = {f"agent{i}": [self.states[i,:,0:2]] for i in range(agent.n_agents)} # T X K X 2, K is time horizon
         self.energies = []

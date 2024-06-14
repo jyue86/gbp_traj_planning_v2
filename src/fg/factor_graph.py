@@ -13,7 +13,7 @@ def init_var2fac_neighbors(time_horizon: int) -> Dict:
         return carry + 2, carry
 
     _, dynamic_dims = jax.lax.scan(
-        create_dynamic_dims, jnp.array([2, 1]), length=time_horizon - 2
+        create_dynamic_dims, jnp.array([2,1]), length=time_horizon - 2
     )
     dynamic_dims = dynamic_dims.flatten()
 
@@ -25,7 +25,7 @@ def init_fac2var_neighbors(time_horizon: int) -> Dict:
         return carry + 2, carry
 
     _, dynamic_dims = jax.lax.scan(
-        create_dynamic_dims, jnp.array([2, 1]), length=time_horizon - 1
+        create_dynamic_dims, jnp.array([1,0]), length=time_horizon - 1
     )
     dynamic_dims = dynamic_dims.flatten()
 
@@ -45,7 +45,7 @@ def init_fac2var_neighbors(time_horizon: int) -> Dict:
         jnp.array([2.0, 2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0]),
         length=time_horizon - 1,
     )
-    marg_order = jnp.stack(jnp.split(marg_order.flatten(), 6))
+    marg_order = jnp.stack(jnp.split(marg_order.flatten(), (time_horizon - 1 ) * 2))
 
     return {"dynamics": dynamic_dims, "factors": factor_dims, "margs": marg_order}
 
@@ -240,6 +240,7 @@ class FactorGraph:
         def batched_update_factor_to_var_messages(
             agent_var2fac_msgs: Var2FacMessages, factors: Factors, neighbors: Dict
         ) -> Fac2VarMessages:
+            """FACTORS class ARE LIKELIHOODS"""
             dynamics = agent_var2fac_msgs.dynamics
 
             updated_poses = factors.poses

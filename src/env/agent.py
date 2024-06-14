@@ -89,6 +89,8 @@ class Agent:
         gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
+        init_marginals = gbp_results["marginals"]
+        jax.debug.print("Init marginals: {}", init_marginals)
 
         def run_gbp(carry, _):
             current_mean = carry[0]
@@ -99,13 +101,13 @@ class Agent:
                 current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
             )
             marginals = gbp_results["marginals"]
-            jax.debug.print("after updating marginal beliefs: {}", marginals.info)
+            # jax.debug.print("after updating marginal beliefs: {}", marginals.info)
             updated_var2fac_msgs = gbp_results["var2fac"]
             updated_fac2var_msgs = gbp_results["fac2var"]
             updated_mean = self._extract_mean(
                 marginals.info, marginals.precision
             )
-            jax.debug.print("the updated mean: {}", updated_mean)
+            # jax.debug.print("the updated mean: {}", updated_mean)
 
             return (
                 updated_mean,
@@ -114,7 +116,7 @@ class Agent:
             ), self.get_energy(marginals, updated_mean)
 
         gbp_results, energies = jax.lax.scan(
-            run_gbp, (mean, var2fac_msgs, fac2var_msgs), length=100
+            run_gbp, (mean, var2fac_msgs, fac2var_msgs), length=200
         )
         mean = gbp_results[0]
         next_states = self._update_marginals(mean)
@@ -130,7 +132,7 @@ class Agent:
         #     next_state = next_state.at[2:,:].multiply(self._delta_t)
         #     return carry, next_state.T
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
-            next_state = (self._state_transition @ carry) + noise
+            next_state = (self._state_transition @ carry)
             return next_state, carry.T
 
         _, states = jax.lax.scan(
@@ -141,10 +143,10 @@ class Agent:
 
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
         def batched_extract_mean(state_info: jnp.ndarray, state_precision: jnp.ndarray):
-            jax.debug.print("state info: {}", state_info)
-            jax.debug.print("state precision: {}", state_precision)
+            # jax.debug.print("state info: {}", state_info)
+            # jax.debug.print("state precision: {}", state_precision)
             moments_mean = (jnp.linalg.inv(state_precision) @ state_info.reshape(-1, 1)).flatten()
-            jax.debug.print("moments mean: {}", moments_mean)
+            # jax.debug.print("moments mean: {}", moments_mean)
             return moments_mean
 
         return jax.vmap(jax.vmap(batched_extract_mean))(info, precision)

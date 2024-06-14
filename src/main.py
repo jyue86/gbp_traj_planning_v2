@@ -22,7 +22,7 @@ def init(scenario_config: Dict) -> Dict:
     crit_distance = (
         2 * scenario_config["agent_radius"] + scenario_config["safety_distance"]
     )
-    jax.debug.print("crit distance: {}", crit_distance)
+    # jax.debug.print("crit distance: {}", crit_distance)
     # obstacle_radius = scenario_config["obstacle_radius"]
     obstacle_pos = jnp.array(scenario_config["obstacle_pos"])
     obstacle = Obstacle(obstacle_pos)
