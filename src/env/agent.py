@@ -90,7 +90,6 @@ class Agent:
         gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
-        # init_marginals = gbp_results["marginals"]
 
         def run_gbp(carry, _):
             current_mean = carry[0]

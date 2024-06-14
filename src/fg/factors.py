@@ -95,19 +95,19 @@ class DynamicsFactor(Factor):
         diff = self._state_transition @ prev_state - current_state
         return diff
     
-    def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
-        X = state
-        J = jnp.array([
-            [1, 0, self._delta_t, 0, -1, 0, 0, 0],  # h(x)[0] = dx = x(k) + vx(k) * dt - x(k+1)
-            [0, 1, 0, self._delta_t, 0, -1, 0, 0],  # h(x)[1] = dy = y(k) + vy(k) * dt - y(k+1)
-            [0, 0, 1, 0, 0, 0, -1, 0],  # h(x)[2] = dvx = vx(k) - vx(k+1)
-            [0, 0, 0, 1, 0, 0, 0, -1],  # h(x)[3] = dvy = vy(k) - vy(k+1)
-        ])  # [4, 8]
-        h = self._calc_measurement(state)
-        first_part = (J.T @ precision)
-        second_part = (J @ X.reshape((-1,1)) - h.reshape((-1,1)))
-        eta = first_part @ second_part 
-        return eta.squeeze()
+    # def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
+    #     X = state
+    #     J = jnp.array([
+    #         [1, 0, self._delta_t, 0, -1, 0, 0, 0],  # h(x)[0] = dx = x(k) + vx(k) * dt - x(k+1)
+    #         [0, 1, 0, self._delta_t, 0, -1, 0, 0],  # h(x)[1] = dy = y(k) + vy(k) * dt - y(k+1)
+    #         [0, 0, 1, 0, 0, 0, -1, 0],  # h(x)[2] = dvx = vx(k) - vx(k+1)
+    #         [0, 0, 0, 1, 0, 0, 0, -1],  # h(x)[3] = dvy = vy(k) - vy(k+1)
+    #     ])  # [4, 8]
+    #     h = self._calc_measurement(state)
+    #     first_part = (J.T @ precision)
+    #     second_part = (J @ X.reshape((-1,1)) - h.reshape((-1,1)))
+    #     eta = first_part @ second_part 
+    #     return eta.squeeze()
     
 class InterRobotFactor(Factor):
     def __init__(
@@ -123,23 +123,23 @@ class InterRobotFactor(Factor):
         precision = jnp.pow(t * INTER_ROBOT_NOISE, -2) * jnp.eye(N_STATES)
         super(InterRobotFactor, self).__init__(state, precision, dims, False)
 
-    # def _calc_measurement(self, state: jnp.ndarray):
-    #     current_state = state[0:4]
-    #     other_state = state[4:]
-    #     dist = self._calc_dist(current_state, other_state)
-    #     # jax.debug.print("dist: {}", dist)
-    #     measurement = jax.lax.select(
-    #         dist < self._critical_distance, jnp.full((4,), 1.0 - dist / self._critical_distance), jnp.zeros((4,)) 
-    #     )
-    #     def breakpoint_if_less(dist):
-    #         cond = dist < self._critical_distance
-    #         def true_fn(x):
-    #             jax.debug.breakpoint()
-    #         def false_fn(x):
-    #             pass
-    #         jax.lax.cond(cond, true_fn, false_fn, dist)
-    #     breakpoint_if_less(dist)
-    #     return measurement
+    def _calc_measurement(self, state: jnp.ndarray):
+        current_state = state[0:4]
+        other_state = state[4:]
+        dist = self._calc_dist(current_state, other_state)
+        # jax.debug.print("dist: {}", dist)
+        measurement = jax.lax.select(
+            dist < self._critical_distance, jnp.full((4,), 1.0 - dist / self._critical_distance), jnp.zeros((4,)) 
+        )
+        def breakpoint_if_less(dist):
+            cond = dist < self._critical_distance
+            def true_fn(x):
+                jax.debug.breakpoint()
+            def false_fn(x):
+                pass
+            jax.lax.cond(cond, true_fn, false_fn, dist)
+        breakpoint_if_less(dist)
+        return measurement
     
     def _calc_dist(self, state: jnp.array, other_state: jnp.array):
         return jnp.linalg.norm(state[0:2] - other_state[0:2]) 
