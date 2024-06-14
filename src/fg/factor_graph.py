@@ -106,6 +106,31 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon)
 
+    def get_energy(self, state):
+        def agent_energies(agent_state):
+
+            def pose_energy(state):
+                fac = PoseFactor(state, jnp.ones(4))
+                hX = 0-fac._calc_measurement(state)
+                prec = fac._calc_precision(state, fac._state_precision)
+                return hX.T @ prec @ hX
+
+            def dynamics_energy(current_state, next_state):
+                state = jnp.concatenate((current_state, next_state))
+                fac = DynamicsFactor(state, self._delta_t, jnp.ones(8))
+                h1 = 0-fac._calc_measurement(state)
+                h2 = 0-fac._calc_measurement(state)
+                hX = jnp.concatenate((h1, h2))
+                prec = fac._calc_precision(state, fac._state_precision)
+                return hX.T @ prec @ hX
+            
+            pose = jax.vmap(pose_energy)(agent_state)
+            dynamics = jax.vmap(dynamics_energy)(agent_state[:-1], agent_state[1:])
+
+            return pose.sum() + dynamics.sum()
+        
+        return 0.5 * jax.vmap(agent_energies)(state)
+
     def run_inter_robot_gbp_init(
         self,
         states: jnp.ndarray,

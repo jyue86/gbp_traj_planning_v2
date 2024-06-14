@@ -90,8 +90,7 @@ class Agent:
         gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
-        init_marginals = gbp_results["marginals"]
-        jax.debug.print("Init marginals: {}", init_marginals)
+        # init_marginals = gbp_results["marginals"]
 
         def run_gbp(carry, _):
             current_mean = carry[0]
@@ -110,20 +109,17 @@ class Agent:
             updated_mean = self._extract_mean(
                 marginals.info, marginals.precision
             )
-            jax.debug.print("the updated mean: {}", updated_mean)
-
             return (
                 updated_mean,
                 updated_var2fac_msgs,
                 updated_fac2var_msgs,
-            ), self.get_energy(marginals, updated_mean)
+            ), self._factor_graph.get_energy(marginals, updated_mean)
 
         gbp_results, energies = jax.lax.scan(
             run_gbp, (mean, var2fac_msgs, fac2var_msgs), length=200
         )
         mean = gbp_results[0]
         next_states = self._update_marginals(mean)
-        jax.debug.print("bwoah next states: {}", next_states)
         return next_states, energies
 
     @jax.jit

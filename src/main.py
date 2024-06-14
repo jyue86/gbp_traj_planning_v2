@@ -70,7 +70,7 @@ def main():
         i += 1
     print("Iterations:", i)
     
-    maybe_plot_energies = False
+    maybe_plot_energies = True
     if maybe_plot_energies:
         eng = jnp.stack(env.energies)
         plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
