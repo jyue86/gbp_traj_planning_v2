@@ -7,6 +7,7 @@ from matplotlib.legend_handler import HandlerTuple
 import jax.numpy as jnp
 from env import Agent, Environment, Obstacle
 from utils import load_json
+from metrics import total_dist_travelled, log_dimensionless_jerk
 
 
 def init(scenario_config: Dict) -> Dict:
@@ -81,6 +82,13 @@ def main():
         plt.xlabel("Timesteps")
         plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
         plt.show(block=True)
+
+    plot_metrics = True
+    if plot_metrics:
+        for agent, waypoints in env.waypoints.items():
+            print(f"{agent} Statistics")
+            print(f"Total Distance Travlled: {total_dist_travelled(jnp.array(waypoints))}")
+            print(f"Log Dimensionless Jerk: {log_dimensionless_jerk(jnp.array(waypoints), 0.2)}")
     env.render()
 
 
