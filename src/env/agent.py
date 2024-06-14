@@ -42,7 +42,7 @@ class Agent:
 
         self._factor_graph = FactorGraph(
             self._n_agents,
-            self._time_horizon,
+            self._time_horizon + 1,
             self._agent_radius,
             self._crit_distance,
             self._end_pos,
@@ -132,13 +132,14 @@ class Agent:
         #     next_state = next_state.at[2:,:].multiply(self._delta_t)
         #     return carry, next_state.T
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
-            next_state = (self._state_transition @ carry)
+            next_state = (self._state_transition @ carry) + noise
             return next_state, carry.T
 
         _, states = jax.lax.scan(
             update_state, self._start_state.T, random_noise, length=self._time_horizon
         )
         initial_states = jnp.swapaxes(states, 0, 1)
+        initial_states = jnp.concat((initial_states, self._end_pos[:,None,:]), axis=1)
         return initial_states
 
     def _extract_mean(self, info: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:

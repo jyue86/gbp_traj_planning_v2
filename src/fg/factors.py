@@ -41,6 +41,7 @@ class Factor:
             eta = (J.T @ precision) @ (
                 (J @ X.reshape((-1,1))) + 0 - self._calc_measurement(state).reshape((-1,1))
             )
+            # jax.debug.breakpoint()
         return eta.squeeze()
 
     def _calc_precision(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
@@ -62,27 +63,27 @@ class PoseFactor(Factor):
 
 class DynamicsFactor(Factor):
     def __init__(self, state: jnp.ndarray, delta_t: float, dims: jnp.ndarray) -> None:
-        self.delta_t = delta_t
+        self._delta_t = delta_t
         process_covariance = DYNAMICS_NOISE * jnp.eye(N_STATES // 2)
         top_half = jnp.hstack(
             (
-                self.delta_t**3 * process_covariance / 3,
-                self.delta_t**2 * process_covariance / 2,
+                self._delta_t**3 * process_covariance / 3,
+                self._delta_t**2 * process_covariance / 2,
             )
         )
         bottom_half = jnp.hstack(
             (
-                self.delta_t**2 * process_covariance / 2,
-                self.delta_t * process_covariance,
+                self._delta_t**2 * process_covariance / 2,
+                self._delta_t * process_covariance,
             )
         )
         precision = jnp.vstack((top_half, bottom_half))
         precision = jnp.linalg.inv(precision)
         # precision = jnp.diag(jnp.array([10, 10, 20, 20]))
 
-        self.state_transition = jnp.eye(4)
-        self.state_transition = self.state_transition.at[0:2, 2:].set(
-            jnp.eye(2) * self.delta_t
+        self._state_transition = jnp.eye(4)
+        self._state_transition = self._state_transition.at[0:2, 2:].set(
+            jnp.eye(2) * self._delta_t
         )
 
         super(DynamicsFactor, self).__init__(state, precision, dims, linear=False)
@@ -90,7 +91,23 @@ class DynamicsFactor(Factor):
     def _calc_measurement(self, state: jnp.ndarray) -> jnp.ndarray:
         prev_state = state[0:4]
         current_state = state[4:]
-        return self.state_transition @ prev_state - current_state
+        diff = self._state_transition @ prev_state - current_state
+        return diff
+    
+    def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
+        X = state
+        J = jnp.array([
+            [1, 0, self._delta_t, 0, -1, 0, 0, 0],  # h(x)[0] = dx = x(k) + vx(k) * dt - x(k+1)
+            [0, 1, 0, self._delta_t, 0, -1, 0, 0],  # h(x)[1] = dy = y(k) + vy(k) * dt - y(k+1)
+            [0, 0, 1, 0, 0, 0, -1, 0],  # h(x)[2] = dvx = vx(k) - vx(k+1)
+            [0, 0, 0, 1, 0, 0, 0, -1],  # h(x)[3] = dvy = vy(k) - vy(k+1)
+        ])  # [4, 8]
+        h = self._calc_measurement(state)
+        eta = (J.T @ precision) @ (J @ X.reshape((-1,1)) - h.reshape((-1,1)))
+        jax.debug.print("J.T @ precision: {}", J @ X.reshape((-1,1)))
+        jax.debug.print("eta: {}", eta)
+        jax.debug.breakpoint()
+        return eta.squeeze()
     
 class InterRobotFactor(Factor):
     def __init__(
@@ -125,4 +142,4 @@ class InterRobotFactor(Factor):
         return measurement
     
     def _calc_dist(self, state: jnp.array, other_state: jnp.array):
-        return jnp.linalg.norm(state[0:2] - other_state[0:2])
+        return jnp.linalg.norm(state[0:2] - other_state[0:2]) 

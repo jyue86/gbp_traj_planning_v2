@@ -241,7 +241,7 @@ class FactorGraph:
             agent_var2fac_msgs: Var2FacMessages, factors: Factors, neighbors: Dict
         ) -> Fac2VarMessages:
             """FACTORS class ARE LIKELIHOODS"""
-            dynamics = agent_var2fac_msgs.dynamics
+            dynamics = agent_var2fac_msgs.dynamics[neighbors["dynamics"]]
 
             updated_poses = factors.poses
             f_likelihoods = factors.dynamics[neighbors["factors"]]
@@ -252,11 +252,14 @@ class FactorGraph:
 
             def fn(i):
                 mult_result = multiply_gaussians(
-                    f_likelihoods[i], dynamics[neighbors["dynamics"]][i]
+                    f_likelihoods[i], dynamics[i]
                 )
-                return mult_result.marginalize(marginalize_order[i])
+                marginal_result =  mult_result.marginalize(marginalize_order[i])
+                # jax.debug.breakpoint()
+                return marginal_result
 
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
+            # jax.debug.breakpoint()
 
             return Fac2VarMessages(updated_poses, updated_dynamics)
 
