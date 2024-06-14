@@ -36,7 +36,7 @@ class Gaussian:
         return Gaussian(jnp.zeros(4), jnp.eye(4), dims)
     
     def __call__(self, x: jnp.ndarray) -> float:
-        return 1/2 * x.T @ self.precision @ x - self.info.T @ x
+        return -(1/2 * x.T @ self.precision @ x - self.info.T @ x)
 
     def __getitem__(self, index) -> "Gaussian":
         return Gaussian(self.info[index], self.precision[index], self.dims[index])

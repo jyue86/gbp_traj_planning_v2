@@ -172,6 +172,27 @@ class FactorGraph:
         return jax.vmap(batched_update_var_to_factor_messages, in_axes=(0, None))(
             fac2var_msgs, fac2var_neighbors
         )
+    
+    def get_energy(self, states):
+
+        def agent_energy(agent_state):
+            def pose_energy(state):
+                fac = PoseFactor(state, jnp.ones(4))
+                hX = 0-fac._calc_measurement(state)
+                return hX.T @ fac._calc_precision(state, fac._state_precision) @ hX
+            
+            def dynamics_energy(state, next_state):
+                state = jnp.concatenate((state, next_state), axis=0)
+                fac = DynamicsFactor(state, self._delta_t, jnp.ones(8).at[4:].set(2))
+                hX = 0-fac._calc_measurement(state)
+                return hX.T @ fac._state_precision @ hX
+            
+            pose_energies = jax.vmap(pose_energy)(agent_state).sum()
+            dynamics_energy = jax.vmap(dynamics_energy)(agent_state[:-1], agent_state[1:]).sum()
+
+            return pose_energies + dynamics_energy
+        
+        return 0.5 * jax.vmap(agent_energy)(states)
 
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
         def batch_update_factor_likelihoods(agent_states, end_pos):
