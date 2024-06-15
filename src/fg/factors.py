@@ -120,6 +120,13 @@ class InterRobotFactor(Factor):
     ) -> None:
         self._critical_distance = critical_distance
         self._agent_radius = agent_radius
+        self._z_precision = 100
+
+        dist = self._calc_dist(state[0:4], state[4:])
+        dx, dy = (state[0] - state[4])/dist, (state[1] - state[5])/dist
+        self._J = jnp.array([[-dx/self._critical_distance, -dy/self._critical_distance, 0, 0,
+                              dx/self._critical_distance, dy/self._critical_distance, 0, 0]])
+
         precision = jnp.pow(t * INTER_ROBOT_NOISE, -2) * jnp.eye(N_STATES)
         super(InterRobotFactor, self).__init__(state, precision, dims, False)
 
@@ -145,13 +152,22 @@ class InterRobotFactor(Factor):
         return jnp.linalg.norm(state[0:2] - other_state[0:2]) 
     
     def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
-        J = jax.jacfwd(self._calc_measurement)(state)
+        # J = jax.jacfwd(self._calc_measurement)(state).reshape((1,-1))
         precision = jnp.identity(1) * 100 * (self._critical_distance**2)
-        return precision * J * (J @ state + 0 - self._calc_measurement(state))
+        # return precision * J * (J @ state + 0 - self._calc_measurement(state))
+        return self._J.T @ precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))
         
     def _calc_precision(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
-        precision = jnp.identity(1) * 100 * (self._critical_distance**2)
-        J = jax.jacfwd(self._calc_measurement)(state)
-        prec = jnp.outer(J, J) * precision
-        prec = prec.at[2:4,2:4].set(1).at[6:,6:].set(1)
-        return prec.squeeze()
+        precision = jnp.identity(1) * self._z_precision * (self._critical_distance**2)
+        J = jax.jacfwd(self._calc_measurement)(state).reshape((1,-1))
+        prec = J.T @ precision @ J 
+        # prec = self._J.T @ precision @ self._J 
+        # jax.debug.print("before prec diagonal: {}", jnp.diag(prec))
+        # prec = prec.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
+        prec_diag_values = jnp.diag(prec)
+        prec_diag_values = jnp.where(prec_diag_values == 0.0, 1.0, prec_diag_values)
+        prec = jnp.fill_diagonal(prec, prec_diag_values, inplace=False)
+        # jax.debug.print("prec diag: {}", jnp.diag(prec))
+        # jax.debug.print("inv prec: {}", jnp.linalg.inv(prec))
+        # jax.debug.breakpoint()
+        return prec

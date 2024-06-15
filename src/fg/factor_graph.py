@@ -297,7 +297,7 @@ class FactorGraph:
 
             def multiply_fn(x, y):
                 # jax.debug.breakpoint()
-                jax.debug.print("{}", y)
+                # jax.debug.print("y: {}", y)
                 x = x.replace(dims= jnp.full(4, 1))
                 y = y.replace(dims= jnp.full(4, 100.0))
                 # return x * y
