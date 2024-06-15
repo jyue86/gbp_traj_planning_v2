@@ -448,8 +448,8 @@ class FactorGraph:
         robot_msgs = jax.vmap(jax.vmap(lambda _, var: Gaussian.identity(var)))(
             dummy,
             jnp.repeat(
-                jnp.arange(1, time_horizon + 1, dtype=jnp.float32)[jnp.newaxis, :], n_agents, axis=0
-            ),
+                jnp.arange(1, time_horizon + 1)[jnp.newaxis, :], n_agents, axis=0
+            ).astype(float),
         )
         return robot_msgs
 

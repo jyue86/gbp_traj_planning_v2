@@ -2,7 +2,6 @@ from argparse import ArgumentParser
 from typing import Dict
 
 import matplotlib.pyplot as plt
-from matplotlib.legend_handler import HandlerTuple
 
 import jax.numpy as jnp
 from env import Agent, Environment, Obstacle
