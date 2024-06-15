@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jax
 from viz import Visualizer
 
 from .agent import Agent
@@ -19,6 +20,7 @@ class Environment:
         self.energies = []
 
     def step(self) -> None:
+        # with jax.debug_nans():
         self.states, energies = self.agent.run(self.states, self.timesteps)
         self.energies.append(energies)
         for i in range(self.states.shape[0]):

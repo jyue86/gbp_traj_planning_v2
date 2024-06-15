@@ -49,16 +49,7 @@ class Agent:
             self._delta_t,
         )
 
-    def get_energy(self, beliefs, factor_likeliood):
-        def energy_helper(info, precision, belief):
-            return Gaussian(info, precision, jnp.ones(4))(belief)
-
-        temp = jax.vmap(jax.vmap(energy_helper))(
-            beliefs.info, beliefs.precision, factor_likeliood
-        )
-        return -temp.sum(axis=1)
-
-    # @jax.jit
+    @jax.jit
     def run(self, states: jnp.ndarray, time: jnp.ndarray) -> jnp.ndarray:
         mean = states.copy()
 
@@ -86,7 +77,6 @@ class Agent:
         # end for inter robot
 
         var2fac_msgs = self._factor_graph.init_var2fac_msgs()
-        # gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, inter_fac2var_msgs)
         gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, time)
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
@@ -96,9 +86,6 @@ class Agent:
             var2fac_msgs = carry[1]
             fac2var_msgs = carry[2]
 
-            # gbp_results = self._factor_graph.run_gbp(
-            #     current_mean, var2fac_msgs, fac2var_msgs, inter_fac2var_msgs
-            # )
             gbp_results = self._factor_graph.run_gbp(
                 current_mean, var2fac_msgs, fac2var_msgs, time
             )

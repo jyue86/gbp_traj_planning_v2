@@ -118,16 +118,15 @@ class InterRobotFactor:
         dims: jnp.ndarray,
     ) -> None:
         self._crit_distance = critical_distance
-        self._z_precision = 100
+        self._z_precision = 15 # 100 
 
-        dist = self._calc_dist(state[0:4], state[4:])
-        dx, dy = (state[0] - state[4])/dist, (state[1] - state[5])/dist
+        self._dist = self._calc_dist(state[0:4], state[4:]) + 1e-6
+        dx, dy = (state[0] - state[4])/self._dist, (state[1] - state[5])/self._dist
         self._J = jnp.array([[-dx/self._crit_distance, -dy/self._crit_distance, 0, 0,
                               dx/self._crit_distance, dy/self._crit_distance, 0, 0]])
 
         self._state = state
-        # self._precision = jnp.pow(t * INTER_ROBOT_NOISE, -2) * jnp.eye(N_STATES)
-        self._state_precision = self._z_precision * jnp.eye(1)
+        self._state_precision = self._z_precision * jnp.eye(1) * (self._crit_distance ** 2)
         self._dims = dims
     
     def calculate_likelihood(self) -> Gaussian:
@@ -141,23 +140,21 @@ class InterRobotFactor:
         return jnp.linalg.norm(state[0:2] - other_state[0:2]) 
     
     def _calc_info(self, state: jnp.ndarray, state_precision: jnp.ndarray) -> jnp.ndarray:
-        dist = self._calc_dist(state[0:4], state[4:])
         def safe_fn():
-            return (state_precision @ state[jnp.newaxis,:]).squeeze()
+            return jnp.zeros(8) # state_precision @ state[jnp.newaxis,:]).squeeze()
         def unsafe_fn():
             return (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
-        info = jax.lax.select(dist < self._crit_distance, safe_fn(), unsafe_fn())
+        info = jax.lax.select(self._dist >= self._crit_distance, safe_fn(), unsafe_fn())
         return info
         
     def _calc_precision(self, state: jnp.ndarray, state_precision: jnp.ndarray) -> jnp.ndarray:
-        dist = self._calc_dist(state[0:4], state[4:])
-        def safe_fn():
-            return jnp.eye(8)
-        def unsafe_fn():
-            precision = self._J.T @ state_precision @ self._J 
-            precision = precision.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
-            return precision
-        precision = jax.lax.select(dist < self._crit_distance, safe_fn(), unsafe_fn())
+        unsafe_precision = self._J.T @ state_precision @ self._J 
+        unsafe_precision = unsafe_precision.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
+
+        # eye to enter the cycle
+        # zeros to go back to "the working branch"
+        precision = jax.lax.select(self._dist >= self._crit_distance, jnp.zeros_like(unsafe_precision), unsafe_precision)
+
         return precision
 
     def _calc_measurement(self, state: jnp.ndarray):

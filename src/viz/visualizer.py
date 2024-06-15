@@ -49,8 +49,8 @@ class Visualizer:
             plt.close()
 
     def init_sim(self):
-        self.ax.set_xlim(-10, 10)
-        self.ax.set_ylim(-10, 10)
+        self.ax.set_xlim(-20, 20)
+        self.ax.set_ylim(-20, 20)
 
     def update(self, t):
         for p in self.ax.patches:
