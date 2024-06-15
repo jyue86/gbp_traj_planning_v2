@@ -113,19 +113,17 @@ class InterRobotFactor:
     def __init__(
         self,
         state: jnp.ndarray,
-        agent_radius: float,
         critical_distance: float,
         t: jnp.ndarray, #ndarray just to hold time,
         dims: jnp.ndarray,
     ) -> None:
-        self._critical_distance = critical_distance
-        self._agent_radius = agent_radius
+        self._crit_distance = critical_distance
         self._z_precision = 100
 
         dist = self._calc_dist(state[0:4], state[4:])
         dx, dy = (state[0] - state[4])/dist, (state[1] - state[5])/dist
-        self._J = jnp.array([[-dx/self._critical_distance, -dy/self._critical_distance, 0, 0,
-                              dx/self._critical_distance, dy/self._critical_distance, 0, 0]])
+        self._J = jnp.array([[-dx/self._crit_distance, -dy/self._crit_distance, 0, 0,
+                              dx/self._crit_distance, dy/self._crit_distance, 0, 0]])
 
         self._state = state
         # self._precision = jnp.pow(t * INTER_ROBOT_NOISE, -2) * jnp.eye(N_STATES)
@@ -135,7 +133,7 @@ class InterRobotFactor:
     def calculate_likelihood(self) -> Gaussian:
         return Gaussian(
             self._calc_info(self._state, self._state_precision),
-            self._calc_precision(self._state_precision),
+            self._calc_precision(self._state, self._state_precision),
             self._dims
         )
  
@@ -143,23 +141,23 @@ class InterRobotFactor:
         return jnp.linalg.norm(state[0:2] - other_state[0:2]) 
     
     def _calc_info(self, state: jnp.ndarray, state_precision: jnp.ndarray) -> jnp.ndarray:
-        # J = jax.jacfwd(self._calc_measurement)(state).reshape((1,-1))
-        # return precision * J * (J @ state + 0 - self._calc_measurement(state))
-        return self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))
+        dist = self._calc_dist(state[0:4], state[4:])
+        def safe_fn():
+            return (state_precision @ state[jnp.newaxis,:]).squeeze()
+        def unsafe_fn():
+            return (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
+        info = jax.lax.select(dist < self._crit_distance, safe_fn(), unsafe_fn())
+        return info
         
-    def _calc_precision(self, state_precision: jnp.ndarray) -> jnp.ndarray:
-        precision = self._J.T @ state_precision @ self._J 
-        # jax.debug.print("before prec diagonal: {}", jnp.diag(prec))
-        precision = precision.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
-
-        # prec_diag_values = jnp.diag(precision)
-        # prec_diag_values = jnp.where(prec_diag_values == 0.0, 1.0, prec_diag_values)
-        # precision = jnp.fill_diagonal(precision, prec_diag_values, inplace=False)
-
-        jax.debug.print("prec diag: {}", jnp.diag(precision))
-        jax.debug.print("inv prec: {}", jnp.linalg.inv(precision))
-        jax.debug.print("prec det: {}", jnp.linalg.det(precision))
-        jax.debug.breakpoint()
+    def _calc_precision(self, state: jnp.ndarray, state_precision: jnp.ndarray) -> jnp.ndarray:
+        dist = self._calc_dist(state[0:4], state[4:])
+        def safe_fn():
+            return jnp.eye(8)
+        def unsafe_fn():
+            precision = self._J.T @ state_precision @ self._J 
+            precision = precision.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
+            return precision
+        precision = jax.lax.select(dist < self._crit_distance, safe_fn(), unsafe_fn())
         return precision
 
     def _calc_measurement(self, state: jnp.ndarray):
@@ -167,6 +165,6 @@ class InterRobotFactor:
         other_state = state[4:]
         dist = self._calc_dist(current_state, other_state)
         measurement = jax.lax.select(
-            dist < self._critical_distance, 1.0 - dist / self._critical_distance, 0.
+            dist < self._crit_distance, 1.0 - dist / self._crit_distance, 0.
         )
         return measurement

@@ -58,7 +58,7 @@ class Agent:
         )
         return -temp.sum(axis=1)
 
-    @jax.jit
+    # @jax.jit
     def run(self, states: jnp.ndarray, time: jnp.ndarray) -> jnp.ndarray:
         mean = states.copy()
 
@@ -125,10 +125,6 @@ class Agent:
     def _init_traj(self) -> jnp.ndarray:
         key = jax.random.PRNGKey(0)
         random_noise = jax.random.normal(key, (self._time_horizon, *self._start_state.T.shape))
-        # def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.array, int]:
-        #     next_state = carry + noise
-        #     next_state = next_state.at[2:,:].multiply(self._delta_t)
-        #     return carry, next_state.T
         def update_state(carry: jnp.ndarray, noise: jnp.ndarray) -> Tuple[jnp.ndarray, int]:
             next_state = (self._state_transition @ carry) # + noise
             return next_state, carry.T

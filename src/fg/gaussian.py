@@ -49,15 +49,19 @@ class Gaussian:
         other_dims = other.dims.copy()
         other_unique_val = jnp.unique(other_dims, size=other_dims.shape[0]//4)[0]
         
-        if dims.shape[0] == other_dims.shape[0] and (dims == other_dims).sum() == dims.shape[0]:
+        if dims.shape[0] == other_dims.shape[0] and dims[0] == other_dims[0]:
             idxs_self = idxs_other = jnp.arange(len(dims))
         elif dims.shape[0] == 8:
             idxs_self = jnp.arange(len(dims), dtype=int)
             idxs_other = jnp.where(dims == other_unique_val, size=4)[0]
         else:
             idxs_self = jnp.arange(len(dims), dtype=int)
-            idxs_other = jnp.arange(len(dims), len(dims) + len(other_dims))
+            idxs_other = jnp.arange(len(dims), len(dims) + len(other_dims)) # jax.lax.select((dims == other_dims).sum() == dims.shape[0], jnp.arange(len(dims)), jnp.arange(len(dims), len(dims) + len(other_dims)))
             dims = jnp.concatenate((dims, other_dims))
+
+            # if idxs_other[-1] != idxs_self[-1]:
+            #     dims = jnp.concatenate((dims, other_dims))
+            
         
         # Extend self matrix
         prec_self = jnp.zeros((len(dims), len(dims)))
@@ -89,7 +93,11 @@ class Gaussian:
         prec_ba = prec[jnp.ix_(axis_b, axis_a)]
         prec_bb = prec[jnp.ix_(axis_b, axis_b)]
 
+        diag_values = jnp.diag(prec_bb)
+        prec_bb = jnp.fill_diagonal(prec_bb, jnp.where(diag_values == 0, 1, diag_values), inplace=False)
         prec_bb_inv = jnp.linalg.inv(prec_bb)
+        # jax.debug.print("det: {}", jnp.linalg.det(prec_bb))
+        # jax.debug.print("inv: {}", jnp.linalg.inv(prec_bb))
         info_ = info_a - prec_ab @ prec_bb_inv @ info_b
         prec_ = prec_aa - prec_ab @ prec_bb_inv @ prec_ba
 

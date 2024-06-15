@@ -183,9 +183,12 @@ class FactorGraph:
         ir_factor_likelihoods = self._update_inter_robot_factor_likelihoods(
             states, closest_robots, time
         )
+        jax.debug.print("ir factor likelihoods: {}", ir_factor_likelihoods)
+        jax.debug.print("ir factor likelihoods shape: {}", ir_factor_likelihoods.shape)
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         ).replace(ir=self._inter_robot_factor_to_var_messages(init_var2fac_msgs.ir, ir_factor_likelihoods))
+        jax.debug.print("updated fac2var msgs: {}", updated_fac2var_msgs)
         
         marginals = self._update_marginal_beliefs(
             updated_fac2var_msgs, # inter_robot_fac2var_msgs
@@ -231,11 +234,18 @@ class FactorGraph:
             agent_factors: Factors,
         ):
             robot_msgs = agent_var2fac_msgs # Message from closest robot at time t to robot i for index [i, t, ...]
-
+            jax.debug.print("agent_var2fac_msgs: {}", agent_var2fac_msgs)
             def multiply_gaussians(factor_likelihood, msg):
                 return factor_likelihood * msg
+            
+            def sum_product_fn(g0, g1, marginal_order):
+                mult_result = multiply_gaussians(g0, g1)
+                jax.debug.print("mult result: {}", mult_result)
+                marginalize_result = mult_result.marginalize(marginal_order)
+                jax.debug.print("marginalized result: {}", marginalize_result)
+                return marginalize_result
 
-            sum_product_fn = lambda g0, g1, marginal_order: multiply_gaussians(g0, g1).marginalize(marginal_order)
+            # sum_product_fn = lambda g0, g1, marginal_order: multiply_gaussians(g0, g1).marginalize(marginal_order)
 
             updated_robot_marginalize_dims = jnp.full((self._time_horizon, 4), 100.0)
 
@@ -294,18 +304,19 @@ class FactorGraph:
             poses = agent_fac2var_msgs.poses
             dynamics = agent_fac2var_msgs.dynamics
             ir = agent_fac2var_msgs.ir
+            # jax.debug.breakpoint()
 
             def multiply_fn(x, y):
-                # jax.debug.breakpoint()
-                # jax.debug.print("y: {}", y)
-                x = x.replace(dims= jnp.full(4, 1))
-                y = y.replace(dims= jnp.full(4, 100.0))
-                # return x * y
-                return Gaussian.identity(1.0)
+                jax.debug.print("x: {}", x.dims)
+                jax.debug.print("y: {}", y.dims)
+                # x = x.replace(dims= jnp.full(4, 1))
+                # y = y.replace(dims= jnp.full(4, 100.0))
+                return x * y
+                # return Gaussian.identity(1.0)
                         
             updated_poses = jax.vmap(multiply_fn)(dynamics[self._outer_idx], ir[self._outer_idx])
-            outer_dynamics = jax.vmap(multiply_fn)(poses, ir[self._outer_idx])
             inner_ir = jax.tree_util.tree_map(lambda x: jnp.repeat(x, 2, axis=0), ir[1:-1])
+            outer_dynamics = jax.vmap(multiply_fn)(poses, ir[self._outer_idx])
             inner_dynamics = jax.vmap(multiply_fn)(dynamics[neighbors["dynamics"]], inner_ir)
             updated_dynamics = jax.tree_util.tree_map(
                 lambda x, y, z: jnp.concatenate((x, y, z)),
@@ -351,7 +362,7 @@ class FactorGraph:
         ):
             batch_calc_likelihoods = jax.vmap(
                 lambda x, y: InterRobotFactor(
-                    x, self._agent_radius, self._crit_distance, time, y
+                    x, self._crit_distance, time, y
                 ).calculate_likelihood()
             )
             dims = jnp.ones((self._time_horizon, 4)) * jnp.arange(
