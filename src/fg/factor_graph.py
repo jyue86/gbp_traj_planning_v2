@@ -178,9 +178,7 @@ class FactorGraph:
         # inter_robot_fac2var_msgs: InterRobotFac2VarMessages,
     ) -> Dict:
         updated_factor_likelihoods = self._update_factor_likelihoods(states)
-        updated_fac2var_msgs = self._update_factor_to_var_messages(
-            init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
-        )
+
         closest_robots = FactorGraph.find_closest_robot(states)
         ir_factor_likelihoods = self._update_inter_robot_factor_likelihoods(
             states, closest_robots, time
@@ -234,7 +232,7 @@ class FactorGraph:
         ):
             robot_msgs = agent_var2fac_msgs # Message from closest robot at time t to robot i for index [i, t, ...]
 
-            def multiply_gaussians(factor_likelihood, msg):\
+            def multiply_gaussians(factor_likelihood, msg):
                 return factor_likelihood * msg
 
             sum_product_fn = lambda g0, g1, marginal_order: multiply_gaussians(g0, g1).marginalize(marginal_order)
@@ -297,28 +295,33 @@ class FactorGraph:
             dynamics = agent_fac2var_msgs.dynamics
             ir = agent_fac2var_msgs.ir
 
-            multiply_fn = lambda x, y: x * y
-
             def multiply_fn(x, y):
-                return x * y
+                # jax.debug.breakpoint()
+                jax.debug.print("{}", y)
+                x = x.replace(dims= jnp.full(4, 1))
+                y = y.replace(dims= jnp.full(4, 100.0))
+                # return x * y
+                return Gaussian.identity(1.0)
+                        
+            updated_poses = jax.vmap(multiply_fn)(dynamics[self._outer_idx], ir[self._outer_idx])
+            outer_dynamics = jax.vmap(multiply_fn)(poses, ir[self._outer_idx])
+            inner_ir = jax.tree_util.tree_map(lambda x: jnp.repeat(x, 2, axis=0), ir[1:-1])
+            inner_dynamics = jax.vmap(multiply_fn)(dynamics[neighbors["dynamics"]], inner_ir)
+            updated_dynamics = jax.tree_util.tree_map(
+                lambda x, y, z: jnp.concatenate((x, y, z)),
+                outer_dynamics[0:1],
+                inner_dynamics,
+                outer_dynamics[1:],
+            )
+
             outer_ir = jax.vmap(multiply_fn)(dynamics[self._outer_idx], poses)
-            inner_ir = jax.vmap(multiply_fn)(dynamics[1:], dynamics[:-1])
+            inner_ir = jax.vmap(multiply_fn)(dynamics[1:-1:2], dynamics[2:-1:2])
 
             updated_ir = jax.tree_util.tree_map(
                 lambda x, y, z: jnp.concatenate((x, y, z)),
                 outer_ir[0:1],
                 inner_ir,
                 outer_ir[1:],
-            )
-            
-            updated_poses = jax.vmap(multiply_fn)(dynamics[self._outer_idx], ir[self._outer_idx])
-            outer_dynamics = jax.vmap(multiply_fn)(poses, ir[self._outer_idx])
-            inner_dynamics = jax.vmap(multiply_fn)(ir[1:-1 ], dynamics[neighbors["dynamics"]])
-            updated_dynamics = jax.tree_util.tree_map(
-                lambda x, y, z: jnp.concatenate((x, y, z)),
-                outer_dynamics[0:1],
-                inner_dynamics,
-                outer_dynamics[1:],
             )
             return Var2FacMessages(updated_poses, updated_dynamics, updated_ir)
 
@@ -445,7 +448,7 @@ class FactorGraph:
         robot_msgs = jax.vmap(jax.vmap(lambda _, var: Gaussian.identity(var)))(
             dummy,
             jnp.repeat(
-                jnp.arange(1, time_horizon + 1)[jnp.newaxis, :], n_agents, axis=0
+                jnp.arange(1, time_horizon + 1, dtype=jnp.float32)[jnp.newaxis, :], n_agents, axis=0
             ),
         )
         return robot_msgs

@@ -129,17 +129,29 @@ class InterRobotFactor(Factor):
         dist = self._calc_dist(current_state, other_state)
         # jax.debug.print("dist: {}", dist)
         measurement = jax.lax.select(
-            dist < self._critical_distance, jnp.full((4,), 1.0 - dist / self._critical_distance), jnp.zeros((4,)) 
+            dist < self._critical_distance, 1.0 - dist / self._critical_distance, 0.
         )
-        def breakpoint_if_less(dist):
-            cond = dist < self._critical_distance
-            def true_fn(x):
-                jax.debug.breakpoint()
-            def false_fn(x):
-                pass
-            jax.lax.cond(cond, true_fn, false_fn, dist)
-        breakpoint_if_less(dist)
+        # def breakpoint_if_less(dist):
+        #     cond = dist < self._critical_distance
+        #     # def true_fn(x):
+        #     #     jax.debug.breakpoint()
+        #     # def false_fn(x):
+        #     #     pass
+        #     # jax.lax.cond(cond, true_fn, false_fn, dist)
+        # breakpoint_if_less(dist)
         return measurement
     
     def _calc_dist(self, state: jnp.array, other_state: jnp.array):
         return jnp.linalg.norm(state[0:2] - other_state[0:2]) 
+    
+    def _calc_info(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
+        J = jax.jacfwd(self._calc_measurement)(state)
+        precision = jnp.identity(1) * 100 * (self._critical_distance**2)
+        return precision * J * (J @ state + 0 - self._calc_measurement(state))
+        
+    def _calc_precision(self, state: jnp.ndarray, precision: jnp.ndarray) -> jnp.ndarray:
+        precision = jnp.identity(1) * 100 * (self._critical_distance**2)
+        J = jax.jacfwd(self._calc_measurement)(state)
+        prec = jnp.outer(J, J) * precision
+        prec = prec.at[2:4,2:4].set(1).at[6:,6:].set(1)
+        return prec.squeeze()
