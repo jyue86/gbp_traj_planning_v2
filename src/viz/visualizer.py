@@ -14,6 +14,7 @@ class Visualizer:
         agent_radius: float,
         waypoints: Dict[str, jnp.array],
         trajs: Dict[str, jnp.array] = None,
+        obstacles: jnp.array = None
     ) -> None:
         """
         waypoints: {agent_name: pt_data}, pt_data's shape is (timestep,2)
@@ -22,6 +23,7 @@ class Visualizer:
         self.waypoints_data = waypoints
         self.trajs = trajs
         self.agent_radius = agent_radius
+        self.obstacles = obstacles
         # self.colors = [
         #     Visualizer._generate_random_color() for _ in range(len(waypoints))
         # ]
@@ -65,6 +67,14 @@ class Visualizer:
             )
             self.ax.add_patch(circle)
             self.ax.plot(trajs[t, :, 0], trajs[t, :, 1], c=self.colors[i])
+        if self.obstacles != None:
+            for x, y in self.obstacles:
+                obs_circle = Circle(
+                    (x, y),
+                    radius=self.agent_radius*5,
+                    color="green",
+                )
+                self.ax.add_patch(obs_circle)
 
     def plot_whole_trajectories(self):
         for i, agent in enumerate(self.waypoints_data):
@@ -132,7 +142,11 @@ if __name__ == "__main__":
     trajs["agent1"] = jnp.stack(trajs["agent1"])
     trajs["agent2"] = jnp.stack(trajs["agent2"])
 
+    obstacles = jnp.array([
+        [0, 2], [-3, -2]
+    ])
+
     viz = Visualizer(
-        100, 0.2, {"agent1": agent1_waypoints, "agent2": agent2_waypoints}, trajs
+        100, 0.2, {"agent1": agent1_waypoints, "agent2": agent2_waypoints}, trajs, obstacles
     )
     viz.animate(view=True)
