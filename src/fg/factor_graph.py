@@ -357,6 +357,20 @@ class FactorGraph:
             return jax.vmap(find_closest_robot_across_horizon, in_axes=(0, 1))(batch_states[i], modified_states)
         
         return jax.vmap(find_batched_closest_robot, in_axes=(None, 0))(states, jnp.arange(states.shape[0]))
+    
+    @staticmethod
+    def find_closest_obstacle(states: jnp.ndarray, obstacles: jnp.ndarray) -> jnp.ndarray:
+        """
+        obstacles is Nx2 array where N is the number of obstacles
+
+        Returns a AxKx2 array where A is the number of agents, K is the number of time horizon
+        """
+        def find_closest_obstacle_for_pt(state_t, obstacles):
+            closest_obstacle_idx = jnp.argmin(jnp.linalg.norm(state_t[0:2] - obstacles, axis=1))
+            return obstacles[closest_obstacle_idx]
+        def batch_find_closest_obstacle(agent_states, obstacles):
+            return jax.vmap(find_closest_obstacle_for_pt, in_axes=(0, None))(agent_states, obstacles)
+        return jax.vmap(batch_find_closest_obstacle, in_axes=(0, None))(states, obstacles)
 
     def _update_inter_robot_factor_likelihoods(
         self, states: jnp.ndarray, other_states: jnp.ndarray, time: jnp.ndarray
