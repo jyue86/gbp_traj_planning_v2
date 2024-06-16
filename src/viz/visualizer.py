@@ -71,7 +71,7 @@ class Visualizer:
             for x, y in self.obstacles:
                 obs_circle = Circle(
                     (x, y),
-                    radius=self.agent_radius*5,
+                    radius=1,# self.agent_radius*5,
                     color="green",
                 )
                 self.ax.add_patch(obs_circle)

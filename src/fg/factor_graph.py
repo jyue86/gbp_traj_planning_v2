@@ -5,7 +5,12 @@ import jax.numpy as jnp
 from flax.struct import dataclass
 
 from .gaussian import Gaussian
-from .factors import PoseFactor, DynamicsFactor, InterRobotFactor
+from .factors import (
+    PoseFactor,
+    DynamicsFactor, 
+    InterRobotFactor, 
+    ObstacleFactor
+)
 
 
 def init_var2fac_neighbors(time_horizon: int) -> Dict:
@@ -51,28 +56,11 @@ def init_fac2var_neighbors(time_horizon: int) -> Dict:
 
     return {"dynamics": dynamic_dims, "factors": factor_dims, "margs": marg_order}
 
-
-@dataclass
-class InterRobotVar2FacMessages:
-    robot: Gaussian
-    other_robot: Gaussian
-
-
-@dataclass
-class InterRobotFac2VarMessages:
-    robot: Gaussian
-    other_robot: Gaussian
-
-
-@dataclass
-class InterRobotFactors:
-    robots: Gaussian
-
-
 @dataclass
 class Var2FacMessages:
     poses: Gaussian
     dynamics: Gaussian
+    obstacle: Gaussian
     ir: Gaussian
 
 
@@ -80,6 +68,7 @@ class Var2FacMessages:
 class Fac2VarMessages:
     poses: Gaussian
     dynamics: Gaussian
+    obstacle: Gaussian
     ir: Gaussian = None
 
 
@@ -87,6 +76,7 @@ class Fac2VarMessages:
 class Factors:
     poses: Gaussian
     dynamics: Gaussian
+    obstacle: Gaussian
     ir: Gaussian = None
 
 
@@ -99,6 +89,7 @@ class FactorGraph:
         crit_distance: float,
         target_states: jnp.array,
         delta_t: float,
+        obstacles
     ) -> None:
         self._n_agents = n_agents
         self._time_horizon = time_horizon
@@ -106,6 +97,8 @@ class FactorGraph:
         self._crit_distance = crit_distance
         self._target_states = target_states
         self._delta_t = delta_t
+
+        self._obstacles = obstacles
 
         self._outer_idx = jnp.array([0, -1])
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon)
@@ -123,11 +116,8 @@ class FactorGraph:
             def dynamics_energy(current_state, next_state):
                 state = jnp.concatenate((current_state, next_state))
                 fac = DynamicsFactor(state, self._delta_t, jnp.ones(8))
-                h1 = 0-fac._calc_measurement(state)
-                h2 = 0-fac._calc_measurement(state)
-                hX = jnp.concatenate((h1, h2))
-                prec = fac._calc_precision(state, fac._state_precision)
-                return hX.T @ prec @ hX
+                hX = 0-fac._calc_measurement(state)
+                return hX.T @ fac._state_precision @ hX
             
             closest = FactorGraph.find_closest_robot(state)[idx]
             
@@ -150,7 +140,7 @@ class FactorGraph:
     def run_inter_robot_gbp_init(
         self,
         states: jnp.ndarray,
-        init_var2fac_msgs: InterRobotFac2VarMessages,
+        init_var2fac_msgs: Gaussian,
         time: jnp.ndarray,
     ) -> Dict:
         updated_var2fac_msgs = init_var2fac_msgs
@@ -194,12 +184,9 @@ class FactorGraph:
         ir_factor_likelihoods = self._update_inter_robot_factor_likelihoods(
             states, closest_robots, time
         )
-        # jax.debug.print("ir factor likelihoods: {}", ir_factor_likelihoods)
-        # jax.debug.print("ir factor likelihoods shape: {}", ir_factor_likelihoods.shape)
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             init_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         ).replace(ir=self._inter_robot_factor_to_var_messages(init_var2fac_msgs.ir, ir_factor_likelihoods))
-        # jax.debug.print("updated fac2var msgs: {}", updated_fac2var_msgs)
         
         marginals = self._update_marginal_beliefs(
             updated_fac2var_msgs, # inter_robot_fac2var_msgs
@@ -280,9 +267,9 @@ class FactorGraph:
             dynamics = agent_var2fac_msgs.dynamics[neighbors["dynamics"]]
 
             updated_poses = factors.poses
+            updated_obstacle = factors.obstacle
             f_likelihoods = factors.dynamics[neighbors["factors"]]
             marginalize_order = neighbors["margs"]
-            
 
             def multiply_gaussians(g1, g2):
                 return g1.mul(g2, None)
@@ -297,7 +284,7 @@ class FactorGraph:
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))
             # jax.debug.breakpoint()
 
-            return Fac2VarMessages(updated_poses, updated_dynamics)
+            return Fac2VarMessages(updated_poses, updated_dynamics, updated_obstacle)
 
         return jax.vmap(batched_update_factor_to_var_messages, in_axes=(0, 0, None))(
             var2fac_msgs,
@@ -313,6 +300,7 @@ class FactorGraph:
         ):
             poses = agent_fac2var_msgs.poses
             dynamics = agent_fac2var_msgs.dynamics
+            obstacle = agent_fac2var_msgs.obstacle
             ir = agent_fac2var_msgs.ir
             # jax.debug.breakpoint()
             
@@ -320,9 +308,18 @@ class FactorGraph:
                 return g1.mul(g2, False)
                         
             updated_poses = jax.vmap(multiply_combine)(dynamics[self._outer_idx], ir[self._outer_idx])
-            inner_ir = jax.tree_util.tree_map(lambda x: jnp.repeat(x, 2, axis=0), ir[1:-1])
+            updated_poses = jax.vmap(multiply_combine)(updated_poses, obstacle[self._outer_idx])
+            
             outer_dynamics = jax.vmap(multiply_combine)(poses, ir[self._outer_idx])
+            outer_dynamics = jax.vmap(multiply_combine)(outer_dynamics, obstacle[self._outer_idx])
+
+            repeat_fn = lambda x: jnp.repeat(x, 2, axis=0)  
+
+            inner_ir = jax.tree_util.tree_map(repeat_fn, ir[1:-1])
             inner_dynamics = jax.vmap(multiply_combine)(dynamics[neighbors["dynamics"]], inner_ir)
+            inner_obstacle = jax.tree_util.tree_map(repeat_fn, obstacle[1:-1])
+            inner_dynamics = jax.vmap(multiply_combine)(inner_dynamics, inner_obstacle)
+
             updated_dynamics = jax.tree_util.tree_map(
                 lambda x, y, z: jnp.concatenate((x, y, z)),
                 outer_dynamics[0:1],
@@ -330,8 +327,24 @@ class FactorGraph:
                 outer_dynamics[1:],
             )
 
+            outer_obstacle = jax.vmap(multiply_combine)(dynamics[self._outer_idx], ir[self._outer_idx])
+            outer_obstacle = jax.vmap(multiply_combine)(outer_obstacle, poses[self._outer_idx])
+            
+            inner_obstacle = jax.vmap(multiply_combine)(dynamics[1:-1:2], dynamics[2:-1:2])
+            inner_obstacle = jax.vmap(multiply_combine)(inner_obstacle, ir[1:-1])
+
+            updated_obstacle = jax.tree_util.tree_map(
+                lambda x, y, z: jnp.concatenate((x, y, z)),
+                outer_obstacle[0:1],
+                inner_obstacle,
+                outer_obstacle[1:],
+            )
+
             outer_ir = jax.vmap(multiply_combine)(dynamics[self._outer_idx], poses)
+            outer_ir = jax.vmap(multiply_combine)(outer_ir, obstacle[self._outer_idx])
+
             inner_ir = jax.vmap(multiply_combine)(dynamics[1:-1:2], dynamics[2:-1:2])
+            inner_ir = jax.vmap(multiply_combine)(inner_ir, obstacle[1:-1])
 
             updated_ir = jax.tree_util.tree_map(
                 lambda x, y, z: jnp.concatenate((x, y, z)),
@@ -340,7 +353,7 @@ class FactorGraph:
                 outer_ir[1:],
             )
             
-            return Var2FacMessages(updated_poses, updated_dynamics, updated_ir)
+            return Var2FacMessages(updated_poses, updated_dynamics, updated_obstacle, updated_ir)
 
         return jax.vmap(batched_update_var_to_factor_messages, in_axes=(0, None))(
             fac2var_msgs, fac2var_neighbors
@@ -374,7 +387,7 @@ class FactorGraph:
 
     def _update_inter_robot_factor_likelihoods(
         self, states: jnp.ndarray, other_states: jnp.ndarray, time: jnp.ndarray
-    ) -> InterRobotFactors:
+    ) -> Gaussian:
         def batch_update_factor_likelihoods(
             agent_states: jnp.ndarray,
             other_agent_states: jnp.ndarray,
@@ -401,7 +414,7 @@ class FactorGraph:
         )
 
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
-        def batch_update_factor_likelihoods(agent_states, end_pos):
+        def batch_update_factor_likelihoods(agent_states, end_pos, closest_obstacle):
             updated_vel = jnp.clip(-end_pos[0:2] - agent_states[0,0:2], -0.5, 0.5)
             start_state = jnp.hstack((agent_states[0,0:2], updated_vel))
             pose_combos = jnp.stack((start_state, -end_pos))  # [2,4]
@@ -430,14 +443,16 @@ class FactorGraph:
             dynamics = jax.vmap(
                 lambda x, y: DynamicsFactor(x, self._delta_t, y).calculate_likelihood()
             )(dynamic_combos, dynamic_dims)
-            return Factors(poses, dynamics)
+            obstacle = jax.vmap(
+                lambda x, y, idx: ObstacleFactor(x, y, self._crit_distance, self._agent_radius, jnp.full(4, idx, dtype=jnp.float32)).calculate_likelihood()
+            )(agent_states, closest_obstacle, jnp.arange(1, self._time_horizon+1, dtype=jnp.float32))
 
-        return jax.vmap(batch_update_factor_likelihoods)(states, self._target_states)
+            return Factors(poses, dynamics, obstacle)
+        return jax.vmap(batch_update_factor_likelihoods)(states, self._target_states, FactorGraph.find_closest_obstacle(states, self._obstacles))
 
     def _update_marginal_beliefs(
         self,
         fac2var_msgs: Fac2VarMessages,
-        # inter_fac2var_msgs: InterRobotFac2VarMessages,
     ) -> Gaussian:
         def batched_update_marginal_beliefs(
             agent_fac2var_msgs: Fac2VarMessages, # agent_inter_fac2var_msgs
@@ -475,7 +490,7 @@ class FactorGraph:
             fac2var_msgs# , inter_fac2var_msgs
         )
 
-    def init_inter_robot_var2fac_msgs(self) -> InterRobotVar2FacMessages:
+    def init_inter_robot_var2fac_msgs(self) -> Gaussian:
         n_agents = self._n_agents
         time_horizon = self._time_horizon
         dummy = jnp.zeros((n_agents, time_horizon))
@@ -512,7 +527,18 @@ class FactorGraph:
             jnp.zeros((self._n_agents, (self._time_horizon - 1) * 2)),
             jnp.repeat(dynamics_axes, self._n_agents, axis=0),
         )
-        return Var2FacMessages(poses=pose_msgs, dynamics=dynamics_msgs, ir=self.init_inter_robot_var2fac_msgs())
+
+
+        obstacle_msgs = jax.vmap(jax.vmap(lambda var: Gaussian.identity(var)))(
+            jnp.tile(jnp.arange(1, self._time_horizon + 1, dtype=jnp.float32), (self._n_agents, 1))
+        )
+
+        return Var2FacMessages(
+            poses=pose_msgs, 
+            dynamics=dynamics_msgs,
+            obstacle=obstacle_msgs,
+            ir=self.init_inter_robot_var2fac_msgs()
+        )
 
     @property
     def states(self):
@@ -526,6 +552,7 @@ class FactorGraph:
             "delta_t": self._delta_t,
             "agent_radius": self._agent_radius,
             "crit_distance": self._crit_distance,
+            "obstacles": self._obstacles,
         }
         return (children, aux_data)
 
@@ -538,6 +565,7 @@ class FactorGraph:
             aux_data["crit_distance"],
             children[0],
             aux_data["delta_t"],
+            aux_data["obstacles"],
         )
 
 

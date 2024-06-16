@@ -33,20 +33,21 @@ def init(scenario_config: Dict) -> Dict:
         scenario_config["agent_radius"],
         crit_distance,
         delta_t,
-        time_horizon=4
+        obstacles=obstacle_pos,
+        time_horizon=4,
     )
 
     return {
         "agent": agent,
         "max_timesteps": scenario_config["max_timesteps"],
-        "obstacle": obstacle,
+        "obstacle": obstacle_pos,
         "save_gif_path": scenario_config["save_gif_path"],
     }
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--config", "-c", type=str, required=True)
+    parser.add_argument("--config", "-c", type=str, default="configs/scenario1.json")
     args = parser.parse_args()
 
     config = load_json(args.config)
@@ -55,7 +56,7 @@ def main():
         env_data["agent"],
         obstacle=env_data["obstacle"],
         max_timesteps=env_data["max_timesteps"],
-        save_gif_path=env_data["save_gif_path"]
+        save_gif_path=env_data["save_gif_path"],
     )
 
     i = 0

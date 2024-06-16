@@ -40,7 +40,7 @@ class Environment:
             self.planned_trajs[key] = jnp.stack(self.planned_trajs[key])
         
         visualizer = Visualizer(
-            int(self.timesteps[0]), self.agent.agent_radius, self.waypoints, self.planned_trajs
+            int(self.timesteps[0]), self.agent.agent_radius, self.waypoints, self.planned_trajs, self.obstacle
         )
         visualizer.animate(save_fname=self.save_gif_path)
     

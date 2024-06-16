@@ -20,6 +20,7 @@ class Agent:
         agent_radius: float,
         crit_distance: float,
         delta_t: float,
+        obstacles: jnp.ndarray,
         time_horizon: float = 10,
     ):
         self._start_state = start_state
@@ -29,6 +30,7 @@ class Agent:
         self._crit_distance = crit_distance
         self._delta_t = delta_t
         self._time_horizon = time_horizon
+        self._obstacles = obstacles
 
         self._state_transition = jnp.eye(4)
         self._state_transition = self._state_transition.at[:2, 2:].set(
@@ -46,7 +48,8 @@ class Agent:
             self._agent_radius,
             self._crit_distance,
             self._end_pos,
-            self._delta_t,
+            self._delta_t, 
+            self._obstacles,
         )
 
     @jax.jit
@@ -161,6 +164,7 @@ class Agent:
             "crit_distance": self._crit_distance,
             "delta_t": self._delta_t,
             "time_horizon": self._time_horizon,
+            "obstacles": self._obstacles,
         }
         return children, aux_data
 
