@@ -145,11 +145,25 @@ class InterRobotFactor:
         def unsafe_fn():
             return (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
         info = jax.lax.select(self._dist >= self._crit_distance, safe_fn(), unsafe_fn())
+        # jax.debug.print("Info: {}", info)
+        # jax.debug.breakpoint()
         return info
         
     def _calc_precision(self, state: jnp.ndarray, state_precision: jnp.ndarray) -> jnp.ndarray:
         unsafe_precision = self._J.T @ state_precision @ self._J 
         unsafe_precision = unsafe_precision.at[2:4,2:4].set(jnp.eye(2)).at[6:,6:].set(jnp.eye(2))
+
+        # Update A
+        unsafe_precision = unsafe_precision.at[:2,:2].set(unsafe_precision[0, 0])
+
+        # Update B
+        unsafe_precision = unsafe_precision.at[4:6,4:6].set(unsafe_precision[4,4])
+
+        # Update C
+        unsafe_precision = unsafe_precision.at[0:2, 4:6].set(unsafe_precision[0, 4])
+
+        # Update D
+        unsafe_precision = unsafe_precision.at[4:6, 0:2].set(unsafe_precision[4, 0])
 
         # eye to enter the cycle
         # zeros to go back to "the working branch"

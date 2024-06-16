@@ -245,19 +245,18 @@ class FactorGraph:
             agent_factors: Factors,
         ):
             robot_msgs = agent_var2fac_msgs # Message from closest robot at time t to robot i for index [i, t, ...]
-            # jax.debug.print("agent_var2fac_msgs: {}", agent_var2fac_msgs)
             def multiply_gaussians(factor_likelihood, msg):
                 return factor_likelihood.mul(msg, None)
             
             def sum_product_fn(g0, g1, marginal_order):
+                # jax.debug.print("factor likelihoods: {}", g0)
                 mult_result = multiply_gaussians(g0, g1)
                 # jax.debug.print("mult result: {}", mult_result)
                 marginalize_result = mult_result.marginalize(marginal_order)
                 # jax.debug.breakpoint()
-                # jax.debug.print("marginalized result: {}", marginalize_result)
+                jax.debug.print("marginalized result: {}", marginalize_result.info)
+                jax.debug.print("marginalized result's mean: {}", marginalize_result.mean)
                 return marginalize_result
-
-            # sum_product_fn = lambda g0, g1, marginal_order: multiply_gaussians(g0, g1).marginalize(marginal_order)
 
             updated_robot_marginalize_dims = jnp.full((self._time_horizon, 4), 100.0)
 
@@ -293,7 +292,6 @@ class FactorGraph:
                     f_likelihoods[i], dynamics[i]
                 )
                 marginal_result =  mult_result.marginalize(marginalize_order[i])
-                # jax.debug.breakpoint()
                 return marginal_result
 
             updated_dynamics = jax.vmap(fn)(jnp.arange(f_likelihoods.info.shape[0]))

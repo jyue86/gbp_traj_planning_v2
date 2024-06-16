@@ -1,0 +1,21 @@
+{
+    "agents": {
+        "agent1": {
+            "current_state": [0.0, 1.0, 0.0, -0.005],
+            "target_state": [0.0, -1.0, 0.0, 0.0]
+        },
+        "agent2": {
+            "current_state": [0.0, -1.0, 0, 0.005],
+            "target_state": [0.0, 1.0, 0.0, 0.0]
+        }
+    },
+    "agent_radius": 0.2,
+    "obstacle_radius": 1,
+    "safety_distance": 3,
+    "obstacle_pos": [
+        [100, 100]
+    ],
+    "delta_t": 0.2,
+    "max_timesteps": 200,
+    "save_gif_path": "gifs/scenario8.gif"
+}
