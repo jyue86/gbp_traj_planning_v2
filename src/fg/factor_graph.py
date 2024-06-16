@@ -133,7 +133,7 @@ class FactorGraph:
             
             def ir_energy(ind_state, closest, state):
                 state = jnp.concatenate((ind_state, closest))
-                fac = InterRobotFactor(state, self._crit_distance, 0, jnp.ones(4))
+                fac = InterRobotFactor(state, self._crit_distance, 1, jnp.ones(4))
                 hX = jnp.repeat(fac._calc_measurement(state), 8)
                 prec = fac._calc_precision(state, fac._state_precision)
                 
@@ -254,8 +254,8 @@ class FactorGraph:
                 # jax.debug.print("mult result: {}", mult_result)
                 marginalize_result = mult_result.marginalize(marginal_order)
                 # jax.debug.breakpoint()
-                jax.debug.print("marginalized result: {}", marginalize_result.info)
-                jax.debug.print("marginalized result's mean: {}", marginalize_result.mean)
+                # jax.debug.print("marginalized result: {}", marginalize_result.info)
+                # jax.debug.print("marginalized result's mean: {}", marginalize_result.mean)
                 return marginalize_result
 
             updated_robot_marginalize_dims = jnp.full((self._time_horizon, 4), 100.0)

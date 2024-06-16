@@ -50,7 +50,7 @@ class Environment:
     def is_done(self) -> bool:
         end_pos = self.agent.end_pos[:,0:2]
         current_pos = self.states[:,0,0:2]
-        return jnp.linalg.norm(end_pos - current_pos) <= 0.2
+        return jnp.linalg.norm(end_pos - current_pos) <= 0.05
     
     def is_truncated(self) -> bool:
         return self.timesteps == self.max_timesteps
