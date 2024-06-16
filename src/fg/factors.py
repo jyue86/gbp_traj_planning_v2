@@ -131,6 +131,8 @@ class InterRobotFactor:
         # self._state_precision = self._z_precision * jnp.eye(1) * (self._crit_distance ** 2)
         self._state_precision = (t * INTER_ROBOT_NOISE) ** -2 * jnp.eye(1)
         self._dims = dims
+
+        self._gap_multiplier = 1e3
     
     def calculate_likelihood(self) -> Gaussian:
         return Gaussian(
@@ -146,7 +148,7 @@ class InterRobotFactor:
         def safe_fn():
             return jnp.zeros(8) # state_precision @ state[jnp.newaxis,:]).squeeze()
         def unsafe_fn():
-            return (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
+            return self._gap_multiplier * (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
         info = jax.lax.select(self._dist >= self._crit_distance, safe_fn(), unsafe_fn())
         # jax.debug.print("Info: {}", info)
         # jax.debug.breakpoint()
