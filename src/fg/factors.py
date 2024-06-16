@@ -190,3 +190,45 @@ class InterRobotFactor:
             dist < self._crit_distance, 1.0 - dist / self._crit_distance, 0.
         )
         return measurement
+
+class ObstacleFactor:
+    def __init__(
+        self, state: jnp.ndarray, closest_obstacle: jnp.ndarray, crit_distance: float, agent_radius: float, dims: jnp.ndarray
+    ) -> None:
+        self._state = state
+        self._closest_obstacle = closest_obstacle
+        self._crit_distance = crit_distance
+        self._agent_radius = agent_radius
+        self._state_precision = OBSTACLE_NOISE ** (-2) * jnp.eye(1)
+        self._dims = dims
+        self._gap_multiplier = 1
+
+        dist, dx, dy = self._calc_dist(state, closest_obstacle) 
+        def safe_fn():
+            return jnp.zeros((1,4))
+        def unsafe_fn():
+            return jnp.array([[-dx/crit_distance, -dy/crit_distance, 0, 0]])
+        self._J = jax.lax.select(dist >= self._crit_distance, safe_fn(), unsafe_fn())
+    
+    def calculate_likelihood(self) -> Gaussian:
+        return Gaussian(
+            self._calc_info(self._state, self._state_precision),
+            self._calc_precision(self._state_precision),
+            self._dims
+        )
+
+    def _calc_info(self, state: jnp.ndarray, state_precision: jnp.ndarray):
+        info = self._gap_multiplier * (self._J.T @ state_precision @ (self._J @ state[:,jnp.newaxis] - self._calc_measurement(state))).squeeze()
+        return info
+
+    def _calc_precision(self, state_precision: jnp.ndarray):
+        precision = self._J.T @ state_precision @ self._J
+        return precision
+
+    def _calc_measurement(self, state):
+        dist = self._calc_dist(state, self._closest_obstacle)[0]
+        return jax.lax.select(dist < self._agent_radius, 1 - dist / self._agent_radius, 0.)
+
+    def _calc_dist(self, state, other_state):
+        dist = jnp.linalg.norm(state[0:2] - other_state[0:2]) - self._agent_radius
+        return dist, state[0] - other_state[0], state[1] - other_state[1]
