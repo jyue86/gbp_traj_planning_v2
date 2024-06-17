@@ -111,7 +111,7 @@ class FactorGraph:
                 fac = PoseFactor(state, jnp.ones(4))
                 hX = 0-fac._calc_measurement(state)
                 prec = fac._calc_precision(state, fac._state_precision)
-                return hX.T @ prec @ hX
+                return hX.T @ fac._state_precision @ hX
 
             def dynamics_energy(current_state, next_state):
                 state = jnp.concatenate((current_state, next_state))
@@ -122,18 +122,27 @@ class FactorGraph:
             closest = FactorGraph.find_closest_robot(state)[idx]
             
             def ir_energy(ind_state, closest, state):
-                state = jnp.concatenate((ind_state, closest))
-                fac = InterRobotFactor(state, self._crit_distance, 1, jnp.ones(4))
-                hX = jnp.repeat(fac._calc_measurement(state), 8)
-                prec = fac._calc_precision(state, fac._state_precision)
+                both_state = jnp.concatenate((ind_state, closest))
+                fac = InterRobotFactor(both_state, self._crit_distance, 1, jnp.ones(4))
+                hX = -jnp.repeat(fac._calc_measurement(both_state), 8).reshape(1, 8)
+                prec = fac._calc_precision(both_state, fac._state_precision)
                 
-                return hX.T @ prec @ hX
+                return hX.T @ fac._state_precision @ hX
+            
+            closest_obstacle = FactorGraph.find_closest_obstacle(state, self._obstacles)[idx]
+
+            def obstacle_energy(ind_state, closest):
+                fac = ObstacleFactor(ind_state, closest, self._crit_distance, self._agent_radius, jnp.ones(4))
+                hX = -jnp.repeat(fac._calc_measurement(ind_state), 4).reshape(1, 4)
+                # prec = fac._calc_precision(fac._state_precision)
+                return hX.T @ fac._state_precision @ hX
             
             pose = jax.vmap(pose_energy)(agent_state)
             dynamics = jax.vmap(dynamics_energy)(agent_state[:-1], agent_state[1:])
             ir = jax.vmap(ir_energy, in_axes=(0, 0, None))(agent_state, closest, state)
+            obstacle = jax.vmap(obstacle_energy)(agent_state, closest_obstacle)
 
-            return pose.sum() + dynamics.sum() + ir.sum()
+            return pose.sum() + dynamics.sum() + ir.sum() + obstacle.sum()
         
         return 0.5 * jax.vmap(agent_energies, in_axes=(0, 0, None))(state, jnp.arange(state.shape[0]), state)
 

@@ -79,19 +79,19 @@ def main():
         _, _, agents = eng.shape
         # print(agents)
         for agent in range(agents):
-            plt.plot(eng[0, 0, agent], color=colors[agent], label=f"Agent {agent}")
-            plt.plot(eng[1:,1:, agent], color=colors[agent])
+            plt.plot(eng[-1, :, agent], color=colors[agent], label=f"Agent {agent}")
+            # plt.plot(eng[1:,1:, agent], color=colors[agent])
         # print(eng.shape)
         # plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
         # plt.plot(eng[1:,1:, 0], color="b")
         # plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
         # plt.plot(eng[1:, 1:, 1], color="r")
         
-        plt.title("Expected Energy vs. Timesteps")
-        plt.ylabel("Energy")
-        plt.xlabel("Timesteps")
-        plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
-        plt.show(block=True)
+            plt.title("Expected Energy vs. Timesteps")
+            plt.ylabel("Energy")
+            plt.xlabel("Timesteps")
+            plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
+            plt.show(block=True)
 
     plot_metrics = True
     if plot_metrics:
