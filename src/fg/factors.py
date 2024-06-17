@@ -189,7 +189,7 @@ class InterRobotFactor:
         measurement = jax.lax.select(
             dist < self._crit_distance, 1.0 - dist / self._crit_distance, 0.
         )
-        return 0 # measurement
+        return measurement
 
 class ObstacleFactor:
     def __init__(
