@@ -74,10 +74,18 @@ def main():
     maybe_plot_energies = True
     if maybe_plot_energies:
         eng = jnp.stack(env.energies)
-        plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
-        plt.plot(eng[1:,1:, 0], color="b")
-        plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
-        plt.plot(eng[1:, 1:, 1], color="r")
+        colors = ["red", "blue", "orange", "black"]
+        # print(eng.shape)
+        _, _, agents = eng.shape
+        # print(agents)
+        for agent in range(agents):
+            plt.plot(eng[0, 0, agent], color=colors[agent], label=f"Agent {agent}")
+            plt.plot(eng[1:,1:, agent], color=colors[agent])
+        # print(eng.shape)
+        # plt.plot(eng[0, 0, 0], color="b", label="Agent 1")
+        # plt.plot(eng[1:,1:, 0], color="b")
+        # plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
+        # plt.plot(eng[1:, 1:, 1], color="r")
         
         plt.title("Expected Energy vs. Timesteps")
         plt.ylabel("Energy")
@@ -87,10 +95,23 @@ def main():
 
     plot_metrics = True
     if plot_metrics:
+        total_dist = 0
+        total_ldj = 0
+        num_agents = len(env.waypoints)
         for agent, waypoints in env.waypoints.items():
+            dist_travelled = total_dist_travelled(jnp.array(waypoints))
+            ldj = log_dimensionless_jerk(jnp.array(waypoints), 0.2*len(waypoints))
+
+            total_dist += dist_travelled
+            total_ldj += ldj
+
             print(f"{agent} Statistics")
-            print(f"Total Distance Travlled: {total_dist_travelled(jnp.array(waypoints))}")
-            print(f"Log Dimensionless Jerk: {log_dimensionless_jerk(jnp.array(waypoints), 0.2)}")
+            print(f"Total Distance Travlled: {dist_travelled}")
+            print(f"Log Dimensionless Jerk: {ldj}")
+
+        print(f"Avg Statistics Across All Agents")
+        print(f"Avg Total Distance Travlled: {total_dist/num_agents}")
+        print(f"Avg Log Dimensionless Jerk: {total_ldj/num_agents}")
     env.render()
 
 
