@@ -130,9 +130,10 @@ class InterRobotFactor:
         self._state = state
         # self._state_precision = self._z_precision * jnp.eye(1) * (self._crit_distance ** 2)
         self._state_precision = (t * INTER_ROBOT_NOISE) ** -2 * jnp.eye(1)
+        self._energy_precision = (t * INTER_ROBOT_NOISE) ** -2 * jnp.eye(4)
         self._dims = dims
 
-        self._gap_multiplier = 1 # 1e3
+        self._gap_multiplier = 1e10 # 1e3
     
     def calculate_likelihood(self) -> Gaussian:
         return Gaussian(
@@ -200,6 +201,7 @@ class ObstacleFactor:
         self._crit_distance = crit_distance
         self._agent_radius = agent_radius
         self._state_precision = OBSTACLE_NOISE ** (-2) * jnp.eye(1)
+        self._energy_precision = (OBSTACLE_NOISE) ** -2 * jnp.eye(4)
         self._dims = dims
         self._gap_multiplier = 1
 

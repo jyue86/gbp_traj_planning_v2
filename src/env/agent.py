@@ -81,6 +81,7 @@ class Agent:
 
         var2fac_msgs = self._factor_graph.init_var2fac_msgs()
         gbp_results = self._factor_graph.run_gbp_init(mean, var2fac_msgs, time)
+
         var2fac_msgs = gbp_results["var2fac"]
         fac2var_msgs = gbp_results["fac2var"]
 
@@ -98,11 +99,14 @@ class Agent:
             updated_mean = self._extract_mean(
                 marginals.info, marginals.precision
             )
+            # energy = self._factor_graph.get_energy(updated_mean)
+            energy = self._factor_graph.get_energy(marginals, states)
+
             return (
                 updated_mean,
                 updated_var2fac_msgs,
                 updated_fac2var_msgs,
-            ), self._factor_graph.get_energy(updated_mean)
+            ), energy
 
         gbp_results, energies = jax.lax.scan(
             run_gbp, (mean, var2fac_msgs, fac2var_msgs), length=200

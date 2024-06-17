@@ -104,47 +104,58 @@ class FactorGraph:
         self._var2fac_neighbors = init_var2fac_neighbors(time_horizon)
         self._fac2var_neighbors = init_fac2var_neighbors(time_horizon)
 
-    def get_energy(self, state):
-        def agent_energies(agent_state, idx, state):
+    # def get_energy(self, state):
 
-            def pose_energy(state):
-                fac = PoseFactor(state, jnp.ones(4))
-                hX = 0-fac._calc_measurement(state)
-                prec = fac._calc_precision(state, fac._state_precision)
-                return hX.T @ fac._state_precision @ hX
+        # def agent_energies(self, state):
+        # def agent_energies(agent_state, idx, state):
+            
+        #     def pose_energy(state):
+        #         fac = PoseFactor(state, jnp.ones(4))
+        #         hX = state -fac._calc_measurement(state)
+        #         return hX.T @ fac._state_precision @ hX
 
-            def dynamics_energy(current_state, next_state):
-                state = jnp.concatenate((current_state, next_state))
-                fac = DynamicsFactor(state, self._delta_t, jnp.ones(8))
-                hX = 0-fac._calc_measurement(state)
-                return hX.T @ fac._state_precision @ hX
+        #     def dynamics_energy(current_state, next_state):
+        #         state = jnp.concatenate((current_state, next_state))
+        #         fac = DynamicsFactor(state, self._delta_t, jnp.ones(8))
+        #         hX = current_state-fac._calc_measurement(state)
+        #         return hX.T @ fac._state_precision @ hX
             
-            closest = FactorGraph.find_closest_robot(state)[idx]
+        #     closest = FactorGraph.find_closest_robot(state)[idx]
             
-            def ir_energy(ind_state, closest, state):
-                both_state = jnp.concatenate((ind_state, closest))
-                fac = InterRobotFactor(both_state, self._crit_distance, 1, jnp.ones(4))
-                hX = -jnp.repeat(fac._calc_measurement(both_state), 8).reshape(1, 8)
-                prec = fac._calc_precision(both_state, fac._state_precision)
+        #     def ir_energy(ind_state, closest, state):
+        #         both_state = jnp.concatenate((ind_state, closest))
+        #         fac = InterRobotFactor(both_state, self._crit_distance, 1, jnp.ones(4))
+        #         hX = ind_state - fac._calc_measurement(both_state)
                 
-                return hX.T @ fac._state_precision @ hX
+        #         return hX.T @ fac._energy_precision @ hX
             
-            closest_obstacle = FactorGraph.find_closest_obstacle(state, self._obstacles)[idx]
+        #     closest_obstacle = FactorGraph.find_closest_obstacle(state, self._obstacles)[idx]
 
-            def obstacle_energy(ind_state, closest):
-                fac = ObstacleFactor(ind_state, closest, self._crit_distance, self._agent_radius, jnp.ones(4))
-                hX = -jnp.repeat(fac._calc_measurement(ind_state), 4).reshape(1, 4)
-                # prec = fac._calc_precision(fac._state_precision)
-                return hX.T @ fac._state_precision @ hX
+        #     def obstacle_energy(ind_state, closest):
+        #         fac = ObstacleFactor(ind_state, closest, self._crit_distance, self._agent_radius, jnp.ones(4))
+        #         hX = ind_state - fac._calc_measurement(ind_state)
+        #         # prec = fac._calc_precision(fac._state_precision)
+        #         return hX.T @ fac._energy_precision @ hX
             
-            pose = jax.vmap(pose_energy)(agent_state)
-            dynamics = jax.vmap(dynamics_energy)(agent_state[:-1], agent_state[1:])
-            ir = jax.vmap(ir_energy, in_axes=(0, 0, None))(agent_state, closest, state)
-            obstacle = jax.vmap(obstacle_energy)(agent_state, closest_obstacle)
+        #     pose = jax.vmap(pose_energy)(agent_state)
+        #     dynamics = jax.vmap(dynamics_energy)(agent_state[:-1], agent_state[1:])
+        #     ir = jax.vmap(ir_energy, in_axes=(0, 0, None))(agent_state, closest, state)
+        #     obstacle = jax.vmap(obstacle_energy)(agent_state, closest_obstacle)
 
-            return pose.sum() + dynamics.sum() + ir.sum() + obstacle.sum()
+        #     return pose.sum() + dynamics.sum() + ir.sum() + obstacle.sum()
         
-        return 0.5 * jax.vmap(agent_energies, in_axes=(0, 0, None))(state, jnp.arange(state.shape[0]), state)
+        # return 0.5 * jax.vmap(agent_energies, in_axes=(0, 0, None))(state, jnp.arange(state.shape[0]), state)
+
+    def get_energy(self, marginals, state):
+        
+        def agent_energy(marginals, state):
+            
+            def time_energy(marginal, state):
+                return marginal(state)
+
+            return jax.vmap(time_energy)(marginals, state).sum()
+        
+        return jax.vmap(agent_energy)(marginals, state)
 
     def run_inter_robot_gbp_init(
         self,
@@ -224,6 +235,11 @@ class FactorGraph:
         updated_fac2var_msgs = self._update_factor_to_var_messages(
             var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         ).replace(ir=self._inter_robot_factor_to_var_messages(var2fac_msgs.ir, ir_factor_likelihoods))
+
+        BETA = 1
+        damp_fn = lambda x, y: BETA * x + (1 - BETA) * y
+
+        updated_fac2var_msgs = jax.tree_map(damp_fn, updated_fac2var_msgs, fac2var_msgs)
         
         marginals = self._update_marginal_beliefs(
             updated_fac2var_msgs, # inter_robot_fac2var_msgs

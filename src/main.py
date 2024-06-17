@@ -87,9 +87,9 @@ def main():
         # plt.plot(eng[0, 0, 1], color="r", label="Agent 2")
         # plt.plot(eng[1:, 1:, 1], color="r")
         
-            plt.title("Expected Energy vs. Timesteps")
+            plt.title("Expected Energy vs. GBP Iterations")
             plt.ylabel("Energy")
-            plt.xlabel("Timesteps")
+            plt.xlabel("Iterations")
             plt.legend()# tuple(p1 + p2), ("Agent 1", "Agent 2"), handler_map={tuple: HandlerTuple(ndivide=None)})
             plt.show(block=True)
 
