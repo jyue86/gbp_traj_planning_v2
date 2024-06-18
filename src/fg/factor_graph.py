@@ -233,7 +233,7 @@ class FactorGraph:
             states, closest_robots, time
         )
         updated_fac2var_msgs = self._update_factor_to_var_messages(
-            var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
+            updated_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
         ).replace(ir=self._inter_robot_factor_to_var_messages(var2fac_msgs.ir, ir_factor_likelihoods))
 
         BETA = 1
