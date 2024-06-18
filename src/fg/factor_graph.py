@@ -442,7 +442,7 @@ class FactorGraph:
         def batch_update_factor_likelihoods(agent_states, end_pos, closest_obstacle):
             updated_vel = jnp.clip(end_pos[0:2] - agent_states[0,0:2], -0.5, 0.5)
             start_state = jnp.hstack((agent_states[0,0:2], updated_vel))
-            pose_combos = jnp.stack((start_state, end_pos))  # [2,4]
+            pose_combos = jnp.stack((-start_state, -end_pos))  # [2,4]
             # pose_combos = jnp.stack((agent_states[0], -end_pos))  # [2,4]
             pose_dims = jnp.stack(
                 [
