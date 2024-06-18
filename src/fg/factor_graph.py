@@ -233,8 +233,8 @@ class FactorGraph:
             states, closest_robots, time
         )
         updated_fac2var_msgs = self._update_factor_to_var_messages(
-            var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
-        ).replace(ir=self._inter_robot_factor_to_var_messages(var2fac_msgs.ir, ir_factor_likelihoods))
+            updated_var2fac_msgs, updated_factor_likelihoods, self._fac2var_neighbors
+        ).replace(ir=self._inter_robot_factor_to_var_messages(updated_var2fac_msgs.ir, ir_factor_likelihoods))
 
         BETA = 1
         damp_fn = lambda x, y: BETA * x + (1 - BETA) * y
@@ -440,9 +440,9 @@ class FactorGraph:
 
     def _update_factor_likelihoods(self, states: jnp.array) -> Factors:
         def batch_update_factor_likelihoods(agent_states, end_pos, closest_obstacle):
-            updated_vel = jnp.clip(-end_pos[0:2] - agent_states[0,0:2], -0.5, 0.5)
+            updated_vel = jnp.clip(end_pos[0:2] - agent_states[0,0:2], -0.5, 0.5)
             start_state = jnp.hstack((agent_states[0,0:2], updated_vel))
-            pose_combos = jnp.stack((start_state, -end_pos))  # [2,4]
+            pose_combos = jnp.stack((start_state, end_pos))  # [2,4]
             # pose_combos = jnp.stack((agent_states[0], -end_pos))  # [2,4]
             pose_dims = jnp.stack(
                 [
